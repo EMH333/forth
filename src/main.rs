@@ -1,22 +1,13 @@
 use std::collections::HashMap;
-use std::{env, fmt, io};
-use std::fs::{File, read_to_string};
-use std::io::{BufRead, BufReader, Lines};
-use std::path::Path;
+use std::io::{BufRead, BufReader};
 use std::string::ToString;
 
-fn blank_ok() -> Result<String, String> {
-    Ok("".to_string())
+fn blank_ok() -> Result<InterpretResult, String> {
+    Ok(InterpretResult::new_str(""))
 }
 
-fn underflow_err() -> Result<String, String> {
+fn underflow_err() -> Result<InterpretResult, String> {
     Err("Stack Underflow".to_string())
-}
-
-fn read_lines<P>(filename: P) -> io::Result<io::BufReader<File>>
-    where P: AsRef<Path>, {
-    let file = File::open(filename)?;
-    Ok(io::BufReader::new(file))
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -24,6 +15,28 @@ type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 struct State {
     defined_words: HashMap<String, String>,
     print_quote: bool,
+}
+
+#[derive(Debug)]
+struct InterpretResult {
+    output: String,
+    skip_line: bool,
+}
+
+impl InterpretResult {
+    fn new(out: String) -> InterpretResult {
+        InterpretResult {
+            output: out,
+            skip_line: false,
+        }
+    }
+
+    fn new_str(out: &str) -> InterpretResult {
+        InterpretResult {
+            output: out.to_string(),
+            skip_line: false,
+        }
+    }
 }
 
 fn main() -> Result<(), Error> {
@@ -38,7 +51,7 @@ fn main() -> Result<(), Error> {
             return Err(Error::from("Usage: cmd <path>"));
         }
     };
-    let mut input: Box<dyn std::io::BufRead + 'static> = if path.as_os_str() == "-" {
+    let input: Box<dyn std::io::BufRead + 'static> = if path.as_os_str() == "-" {
         Box::new(std::io::stdin().lock())
     } else {
         match std::fs::File::open(&path) {
@@ -55,33 +68,35 @@ fn main() -> Result<(), Error> {
             let result = run_word(&mut stack, &mut state, word);
             if result.is_ok() {
                 let out = result.unwrap();
-                if !out.is_empty() {
-                    println!("{}", out)
+                if out.skip_line {
+                    break
+                }
+                if !out.output.is_empty() {
+                    println!("{}", out.output)
                 }
             } else {
-                println!("{}", result.unwrap_err());
-                return Err(Error::from("Unrecognized Word"));
+                return Err(Error::from(result.unwrap_err()));
             }
         }
     }
     return Ok(());
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<String, String> {
-    let int = word.parse::<i64>();
-    if int.is_ok() {
-        stack.push(int.unwrap());
-        return Ok("".to_string());
-    }
-
+fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<InterpretResult, String> {
     if state.print_quote && word != "\"" {
-        print!("{}", word);
+        print!("{} ", word);
         return blank_ok()
     }
     if state.print_quote && word == "\"" {
         println!();
         state.print_quote = false;
         return blank_ok()
+    }
+
+    let int = word.parse::<i64>();
+    if int.is_ok() {
+        stack.push(int.unwrap());
+        return blank_ok();
     }
 
     // must be an actual word
@@ -112,6 +127,11 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Strin
         ".\"" => {
             state.print_quote = true;
             blank_ok()
+        }
+        "\\" => {
+            let mut out = InterpretResult::new_str("");
+            out.skip_line = true;
+            Ok(out)
         }
         _ => {
             if state.defined_words.contains_key(word) {
