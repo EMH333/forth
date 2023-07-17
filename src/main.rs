@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::io::{BufRead, BufReader};
 use std::string::ToString;
+use std::i64;
 
 fn blank_ok() -> Result<InterpretResult, String> {
     Ok(InterpretResult::new_str(""))
@@ -16,6 +16,7 @@ type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 #[derive(Debug)]
 struct State {
     defined_words: HashMap<String, String>,
+    variables: HashMap<String, i64>, // also serves constants
     print_quote: bool,
 }
 
@@ -44,7 +45,7 @@ impl InterpretResult {
 fn main() -> Result<(), Error> {
     let mut stack = Vec::new();
     let mut state: State;
-    state = State { defined_words: Default::default(), print_quote: false };
+    state = State { defined_words: Default::default(), variables: Default::default(), print_quote: false };
 
     // read in words from std (or file eventually) and evaluate
     let path = match std::env::args_os().nth(1) {
@@ -72,7 +73,7 @@ fn main() -> Result<(), Error> {
                 print!("{}", out)
             }
         } else {
-            return Err(line_result.unwrap_err())
+            return Err(line_result.unwrap_err());
         }
         println!()
     }
@@ -81,7 +82,7 @@ fn main() -> Result<(), Error> {
 
 fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec<String>, Error> {
     let mut output = Vec::new();
-    let words:Vec<&str> = line.split(' ').collect();
+    let words: Vec<&str> = line.split(' ').collect();
 
     let mut resume_index = 0;
 
@@ -93,9 +94,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         let word = words.get(i).unwrap();
 
-        if word.is_empty() { continue }
+        if word.is_empty() { continue; }
 
-        if word.to_string() == ":" {
+        // functions
+        if word.to_string() == ":" && !state.print_quote {
             // collect whole function, then resume later
             let mut function: String = String::new();
             let mut function_name: String = String::new();
@@ -111,8 +113,38 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
                 func_index += 1;
             }
+            // TODO if last index isn't ; then error
             state.defined_words.insert(function_name, function.trim().to_string());
             resume_index = func_index + 1;
+            continue;
+        }
+
+        // variables
+        if word.to_lowercase().to_string() == "variable" && !state.print_quote {
+            //TODO err if last index isn't name of var
+            //TODO figure out how variables are set/created, etc. I think it still just refers to the stack
+            if stack.len() == 0 {
+                stack.push(0);
+            }
+            let name = words.get(i + 1).unwrap();
+            let loc = (stack.len() - 1) as i64; // use the stack location for now //TODO fix this later
+            state.variables.insert(name.to_string(), loc);
+
+            resume_index = i + 2;
+            continue;
+        }
+
+        // constants
+        if word.to_lowercase().to_string() == "constant" && !state.print_quote {
+            //TODO err if last index isn't name of const
+            if stack.len() == 0 {
+                return Err(Error::from(underflow_err().unwrap_err()))
+            }
+            let name = words.get(i + 1).unwrap();
+            let val = stack.pop().unwrap();
+            state.variables.insert(name.to_string(), val);
+
+            resume_index = i + 2;
             continue;
         }
 
@@ -121,32 +153,41 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             let out = result.unwrap();
             output.push(out.output);
             if out.skip_line {
-                break
+                break;
             }
         } else {
             println!("Err word: {}", word);
             println!("{:?}", state);
+            println!("Stack: {:?}", stack);
             return Err(Error::from(result.unwrap_err()));
         }
     }
-    return Ok(output)
+    return Ok(output);
 }
 
 //TODO maybe have a word stack as well, instead of state. might need to have a state machine state var as well with like " or : as the contents
 fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<InterpretResult, String> {
     if state.print_quote && word != "\"" {
         print!("{} ", word);
-        return blank_ok()
+        return blank_ok();
     }
     if state.print_quote && word == "\"" {
         println!();
         state.print_quote = false;
-        return blank_ok()
+        return blank_ok();
     }
 
     let int = word.parse::<i64>();
     if int.is_ok() {
         stack.push(int.unwrap());
+        return blank_ok();
+    }
+
+    //try to parse hex
+    let without_prefix = word.trim_start_matches("$");
+    let z = i64::from_str_radix(without_prefix, 16);
+    if z.is_ok() {
+        stack.push(z.unwrap());
         return blank_ok();
     }
 
@@ -164,14 +205,14 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         "." => {
             let result = stack.pop();
             if result.is_some() {
-                return Ok(InterpretResult::new(result.unwrap().to_string()))
+                return Ok(InterpretResult::new(result.unwrap().to_string()));
             } else {
                 underflow_err()
             }
         }
         "=" => {
             if stack.len() < 2 {
-                return underflow_err()
+                return underflow_err();
             }
 
             let one = stack.pop().unwrap();
@@ -186,7 +227,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         }
         ">" => {
             if stack.len() < 2 {
-                return underflow_err()
+                return underflow_err();
             }
 
             let one = stack.pop().unwrap();
@@ -201,7 +242,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         }
         "<" => {
             if stack.len() < 2 {
-                return underflow_err()
+                return underflow_err();
             }
 
             let one = stack.pop().unwrap();
@@ -216,7 +257,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         }
         "*/" => {
             if stack.len() < 3 {
-                return underflow_err()
+                return underflow_err();
             }
 
             let three = stack.pop().unwrap();
@@ -229,7 +270,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         }
         "mod" => {
             if stack.len() < 2 {
-                return underflow_err()
+                return underflow_err();
             }
 
             let two = stack.pop().unwrap();
@@ -240,13 +281,42 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         }
         "*" => {
             if stack.len() < 2 {
-                return underflow_err()
+                return underflow_err();
             }
 
             let two = stack.pop().unwrap();
             let one = stack.pop().unwrap();
 
             stack.push(one * two);
+            blank_ok()
+        }
+        "@" => {
+            if stack.len() < 1 {
+                return underflow_err();
+            }
+
+            let one = stack.pop().unwrap();
+
+            if stack.len() < one as usize {
+                return underflow_err() //TODO make this an actual different error
+            }
+
+            stack.push(*stack.get(one as usize).unwrap());
+            blank_ok()
+        }
+        "!" => {
+            if stack.len() < 2 {
+                return underflow_err();
+            }
+
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            if stack.len() < two as usize {
+                return underflow_err() //TODO make this an actual different error
+            }
+
+            stack[two as usize] = one;
             blank_ok()
         }
         "reset" => {
@@ -274,7 +344,12 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
                     Ok(InterpretResult::new(out))
                 } else {
                     Err(result.unwrap_err().to_string())
-                }
+                };
+            }
+
+            if state.variables.contains_key(word) {
+                stack.push(*state.variables.get(word).unwrap());
+                return blank_ok()
             }
 
             Err("Unrecognized word ".to_string() + &word)
