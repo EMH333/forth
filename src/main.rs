@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::io::{BufRead, BufReader};
 use std::string::ToString;
 
@@ -12,6 +13,7 @@ fn underflow_err() -> Result<InterpretResult, String> {
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+#[derive(Debug)]
 struct State {
     defined_words: HashMap<String, String>,
     print_quote: bool,
@@ -64,7 +66,7 @@ fn main() -> Result<(), Error> {
     };
 
     for line in input.lines() {
-        let line_result = run_line(&mut stack, &mut state, line);
+        let line_result = run_line(&mut stack, &mut state, line.unwrap_or("".to_string()));
         if line_result.is_ok() {
             for out in line_result.unwrap() {
                 print!("{}", out)
@@ -77,12 +79,43 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, line: std::io::Result<String>) -> Result<Vec<String>, Error> {
+fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec<String>, Error> {
     let mut output = Vec::new();
-    let unwrapped_line = line.unwrap_or("".to_string());
-    let words:Vec<&str> = unwrapped_line.split(' ').collect();
+    let words:Vec<&str> = line.split(' ').collect();
+
+    let mut resume_index = 0;
+
+
     for i in 0..words.len() {
+        if i < resume_index {
+            continue;
+        }
+
         let word = words.get(i).unwrap();
+
+        if word.is_empty() { continue }
+
+        if word.to_string() == ":" {
+            // collect whole function, then resume later
+            let mut function: String = String::new();
+            let mut function_name: String = String::new();
+            let mut func_index = i + 1;
+            while func_index < words.len() && words.get(func_index).unwrap().to_string() != ";" {
+                // get function name
+                if i + 1 == func_index {
+                    function_name = words.get(func_index).unwrap().to_string();
+                } else {
+                    function.push(' ');
+                    function.push_str(words.get(func_index).unwrap());
+                }
+
+                func_index += 1;
+            }
+            state.defined_words.insert(function_name, function.trim().to_string());
+            resume_index = func_index + 1;
+            continue;
+        }
+
         let result = run_word(stack, state, word);
         if result.is_ok() {
             let out = result.unwrap();
@@ -92,6 +125,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: std::io::Result<Strin
             }
         } else {
             println!("Err word: {}", word);
+            println!("{:?}", state);
             return Err(Error::from(result.unwrap_err()));
         }
     }
@@ -130,8 +164,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         "." => {
             let result = stack.pop();
             if result.is_some() {
-                println!("{}", result.unwrap());
-                blank_ok()
+                return Ok(InterpretResult::new(result.unwrap().to_string()))
             } else {
                 underflow_err()
             }
@@ -181,6 +214,41 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
             }
             blank_ok()
         }
+        "*/" => {
+            if stack.len() < 3 {
+                return underflow_err()
+            }
+
+            let three = stack.pop().unwrap();
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            let inter = one * two;
+            stack.push(inter / three);
+            blank_ok()
+        }
+        "mod" => {
+            if stack.len() < 2 {
+                return underflow_err()
+            }
+
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            stack.push(one % two);
+            blank_ok()
+        }
+        "*" => {
+            if stack.len() < 2 {
+                return underflow_err()
+            }
+
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            stack.push(one * two);
+            blank_ok()
+        }
         "reset" => {
             //don't do a ton at this point, will be useful later
             stack.clear();
@@ -197,7 +265,16 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
         }
         _ => {
             if state.defined_words.contains_key(word) {
-                //TODO defined stuff
+                let result = run_line(stack, state, String::from(state.defined_words.get(word).unwrap()));
+                return if result.is_ok() {
+                    let mut out = String::new();
+                    for s in result.unwrap() {
+                        out += &*s;
+                    }
+                    Ok(InterpretResult::new(out))
+                } else {
+                    Err(result.unwrap_err().to_string())
+                }
             }
 
             Err("Unrecognized word ".to_string() + &word)
