@@ -64,25 +64,41 @@ fn main() -> Result<(), Error> {
     };
 
     for line in input.lines() {
-        for word in line.unwrap_or("".to_string()).split(' ') {
-            let result = run_word(&mut stack, &mut state, word);
-            if result.is_ok() {
-                let out = result.unwrap();
-                if out.skip_line {
-                    break
-                }
-                if !out.output.is_empty() {
-                    println!("{}", out.output)
-                }
-            } else {
-                println!("Err word: {}", word);
-                return Err(Error::from(result.unwrap_err()));
+        let line_result = run_line(&mut stack, &mut state, line);
+        if line_result.is_ok() {
+            for out in line_result.unwrap() {
+                print!("{}", out)
             }
+        } else {
+            return Err(line_result.unwrap_err())
         }
+        println!()
     }
     return Ok(());
 }
 
+fn run_line(stack: &mut Vec<i64>, state: &mut State, line: std::io::Result<String>) -> Result<Vec<String>, Error> {
+    let mut output = Vec::new();
+    let unwrapped_line = line.unwrap_or("".to_string());
+    let words:Vec<&str> = unwrapped_line.split(' ').collect();
+    for i in 0..words.len() {
+        let word = words.get(i).unwrap();
+        let result = run_word(stack, state, word);
+        if result.is_ok() {
+            let out = result.unwrap();
+            output.push(out.output);
+            if out.skip_line {
+                break
+            }
+        } else {
+            println!("Err word: {}", word);
+            return Err(Error::from(result.unwrap_err()));
+        }
+    }
+    return Ok(output)
+}
+
+//TODO maybe have a word stack as well, instead of state. might need to have a state machine state var as well with like " or : as the contents
 fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<InterpretResult, String> {
     if state.print_quote && word != "\"" {
         print!("{} ", word);
