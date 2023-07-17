@@ -234,6 +234,9 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
                 underflow_err()
             }
         }
+        "cr" => {
+            return Ok(InterpretResult::new_str("\n"));
+        }
         "u.r" => {
             //TODO properly implement
             blank_ok()
@@ -332,6 +335,27 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
             stack.push(*stack.get(one as usize).unwrap());
             blank_ok()
         }
+        "dup" => {
+            if stack.len() < 1 {
+                return underflow_err();
+            }
+
+            let one = stack.pop().unwrap();
+
+            stack.push(one);
+            stack.push(one);
+
+            blank_ok()
+        }
+        "drop" => {
+            if stack.len() < 1 {
+                return underflow_err();
+            }
+
+            stack.pop();
+
+            blank_ok()
+        }
         "!" => {
             if stack.len() < 2 {
                 return underflow_err();
@@ -352,6 +376,13 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
                 return underflow_err();
             }
             stack.push(state.control_stack.last().unwrap().index);
+            blank_ok()
+        }
+        "j" => {
+            if state.control_stack.len() < 2 {
+                return underflow_err();
+            }
+            stack.push(state.control_stack[state.control_stack.len() - 2].index);
             blank_ok()
         }
         "do" => {
