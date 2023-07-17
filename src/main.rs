@@ -75,6 +75,7 @@ fn main() -> Result<(), Error> {
                     println!("{}", out.output)
                 }
             } else {
+                println!("Err word: {}", word);
                 return Err(Error::from(result.unwrap_err()));
             }
         }
@@ -103,7 +104,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
     return match word.to_lowercase().as_str() {
         "+" => {
             if stack.len() < 2 {
-                stack.clear()
+                stack.clear() //TODO should this be an under flow?
             }
             let one = stack.pop().unwrap();
             let two = stack.pop().unwrap();
@@ -118,6 +119,51 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, word: &str) -> Result<Inter
             } else {
                 underflow_err()
             }
+        }
+        "=" => {
+            if stack.len() < 2 {
+                return underflow_err()
+            }
+
+            let one = stack.pop().unwrap();
+            let two = stack.pop().unwrap();
+
+            if one == two {
+                stack.push(1)
+            } else {
+                stack.push(0)
+            }
+            blank_ok()
+        }
+        ">" => {
+            if stack.len() < 2 {
+                return underflow_err()
+            }
+
+            let one = stack.pop().unwrap();
+            let two = stack.pop().unwrap();
+
+            if one < two {
+                stack.push(1)
+            } else {
+                stack.push(0)
+            }
+            blank_ok()
+        }
+        "<" => {
+            if stack.len() < 2 {
+                return underflow_err()
+            }
+
+            let one = stack.pop().unwrap();
+            let two = stack.pop().unwrap();
+
+            if one > two {
+                stack.push(1)
+            } else {
+                stack.push(0)
+            }
+            blank_ok()
         }
         "reset" => {
             //don't do a ton at this point, will be useful later
