@@ -3,6 +3,8 @@ use std::io::{BufRead, BufReader};
 use std::string::ToString;
 use std::i64;
 
+//TODO figure out why fizzbuzz isn't working
+
 fn blank_ok() -> Result<InterpretResult, String> {
     Ok(InterpretResult::new_str(""))
 }
@@ -210,7 +212,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
     //try to parse hex
     let without_prefix = word.trim_start_matches("$");
     let z = i64::from_str_radix(without_prefix, 16);
-    if z.is_ok() {
+    if z.is_ok() && word != without_prefix {
         stack.push(z.unwrap());
         return blank_ok();
     }
