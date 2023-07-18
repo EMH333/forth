@@ -16,10 +16,19 @@ fn underflow_err() -> Result<InterpretResult, String> {
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug)]
+enum IfResult {
+    DontCare,
+    True,
+    False,
+}
+
+#[derive(Debug)]
 struct ControlStackFrame {
     index: i64,
     limit: i64,
-    loop_start: i64, // the index of the line where the loop starts (after DO)
+    loop_start: i64,
+    // the index of the line where the loop starts (after DO)
+    if_result: IfResult,
 }
 
 #[derive(Debug)]
@@ -170,6 +179,63 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 i += 1;
             }
             continue;
+        }
+
+        // if
+        if word.to_lowercase().to_string() == "if" && !state.print_quote {
+            //TODO support nested ifs
+
+            // see if true, otherwise skip it
+            if stack.pop().unwrap() != 0 {
+                //if true, then we pop it on the stack and continue
+                state.control_stack.push(ControlStackFrame {
+                    index: 0,
+                    limit: 0,
+                    loop_start: 0,
+                    if_result: IfResult::True,
+                });
+                i += 1;
+                continue;
+            } else {
+                //if false, then we pop it on the stack and look for another if, an else or then
+                state.control_stack.push(ControlStackFrame {
+                    index: 0,
+                    limit: 0,
+                    loop_start: 0,
+                    if_result: IfResult::False,
+                });
+
+                let mut if_index = i + 1;
+                while if_index < words.len() &&
+                    !(words.get(if_index).unwrap().to_lowercase().to_string() == "else" ||
+                        words.get(if_index).unwrap().to_lowercase().to_string() == "then" ||
+                        words.get(if_index).unwrap().to_lowercase().to_string() == "if") {
+                    if_index += 1;
+                }
+
+                if if_index >= words.len() {
+                    return Err(Error::from("No closing else or then"))
+                }
+
+                match words.get(if_index).unwrap().to_lowercase().as_str() {
+                    "if" => {
+                        //TODO nested ifs will require more work
+                        todo!()
+                    }
+                    "else" => {
+                        // we want to run this, but keep the if on the control stack
+                    }
+                    "then" => {
+                        // no else or other craziness, just pop the if from the stack and continue
+                        state.control_stack.pop();
+                    }
+                    _ => todo!(),
+                }
+
+                // TODO if last index isn't else or then, error
+                i = if_index + 1;
+                continue;
+            }
         }
 
         let result = run_word(stack, state, i as i64, word);
@@ -399,10 +465,16 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
                 index: two,
                 limit: one,
                 loop_start: index + 1,
+                if_result: IfResult::DontCare,
             };
 
             state.control_stack.push(frame);
 
+            blank_ok()
+        }
+        "then" => {
+            // must have come from an executed part of an if statement, safe to remove from control stack
+            state.control_stack.pop();
             blank_ok()
         }
         "reset" => {
