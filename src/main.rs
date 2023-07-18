@@ -15,7 +15,7 @@ fn underflow_err() -> Result<InterpretResult, String> {
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum IfResult {
     DontCare,
     True,
@@ -90,8 +90,11 @@ fn main() -> Result<(), Error> {
         let line_result = run_line(&mut stack, &mut state, line.unwrap_or("".to_string()));
         if line_result.is_ok() {
             for out in line_result.unwrap() {
-                print!("{}", out)
+                if !out.is_empty() {
+                    print!("{} ", out)
+                }
             }
+            print!("OK")
         } else {
             return Err(line_result.unwrap_err());
         }
@@ -214,7 +217,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 }
 
                 if if_index >= words.len() {
-                    return Err(Error::from("No closing else or then"))
+                    return Err(Error::from("No closing else or then"));
                 }
 
                 match words.get(if_index).unwrap().to_lowercase().as_str() {
@@ -236,6 +239,44 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 i = if_index + 1;
                 continue;
             }
+        }
+
+        //else
+        if word.to_lowercase().to_string() == "else" && !state.print_quote {
+            //TODO support nested ifs
+
+            // if if was false, continue as normal, otherwise skip it
+            if state.control_stack.last().unwrap().if_result == IfResult::False {
+                i += 1;
+                continue;
+            }
+
+            let mut if_index = i + 1;
+            while if_index < words.len() &&
+                !(words.get(if_index).unwrap().to_lowercase().to_string() == "then" ||
+                    words.get(if_index).unwrap().to_lowercase().to_string() == "if") {
+                if_index += 1;
+            }
+
+            if if_index >= words.len() {
+                return Err(Error::from("No closing then"));
+            }
+
+            match words.get(if_index).unwrap().to_lowercase().as_str() {
+                "if" => {
+                    //TODO nested ifs will require more work
+                    todo!()
+                }
+                "then" => {
+                    // no else or other craziness, just pop the if from the stack and continue
+                    state.control_stack.pop();
+                }
+                _ => todo!(),
+            }
+
+            // TODO if last index isn't else or then, error
+            i = if_index + 1;
+            continue;
         }
 
         let result = run_word(stack, state, i as i64, word);
@@ -260,11 +301,9 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 //TODO maybe have a word stack as well, instead of state. might need to have a state machine state var as well with like " or : as the contents
 fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> Result<InterpretResult, String> {
     if state.print_quote && word != "\"" {
-        print!("{} ", word);
-        return blank_ok();
+        return Ok(InterpretResult::new_str(word))
     }
     if state.print_quote && word == "\"" {
-        println!();
         state.print_quote = false;
         return blank_ok();
     }
@@ -422,6 +461,32 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
 
             stack.pop();
 
+            blank_ok()
+        }
+        "swap" => {
+            if stack.len() < 2 {
+                return underflow_err();
+            }
+
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            stack.push(two);
+            stack.push(one);
+            blank_ok()
+        }
+        "rot" => {
+            if stack.len() < 3 {
+                return underflow_err();
+            }
+
+            let three = stack.pop().unwrap();
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            stack.push(two);
+            stack.push(three);
+            stack.push(one);
             blank_ok()
         }
         "!" => {
