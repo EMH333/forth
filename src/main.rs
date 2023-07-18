@@ -63,9 +63,9 @@ impl InterpretResult {
 }
 
 fn main() -> Result<(), Error> {
-    let mut stack = Vec::new();
+    let mut stack = Vec::with_capacity(10);
     let mut state: State;
-    state = State { defined_words: Default::default(), variables: Default::default(), control_stack: vec![], print_quote: false };
+    state = State { defined_words: HashMap::with_capacity(5), variables: Default::default(), control_stack: Vec::with_capacity(3), print_quote: false };
 
     // read in words from std (or file eventually) and evaluate
     let path = match std::env::args_os().nth(1) {
@@ -74,7 +74,7 @@ fn main() -> Result<(), Error> {
             return Err(Error::from("Usage: cmd <path>"));
         }
     };
-    let input: Box<dyn std::io::BufRead + 'static> = if path.as_os_str() == "-" {
+    let input: Box<dyn BufRead + 'static> = if path.as_os_str() == "-" {
         Box::new(std::io::stdin().lock())
     } else {
         match std::fs::File::open(&path) {
@@ -87,7 +87,9 @@ fn main() -> Result<(), Error> {
     };
 
     for line in input.lines() {
-        let line_result = run_line(&mut stack, &mut state, line.unwrap_or("".to_string()));
+        let l = line.unwrap();
+        if l.is_empty() { continue }
+        let line_result = run_line(&mut stack, &mut state, l);
         if line_result.is_ok() {
             for out in line_result.unwrap() {
                 if !out.is_empty() {
@@ -110,12 +112,12 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
     let mut i = 0;
 
     while i < words.len() {
-        let word = words.get(i).unwrap();
+        let word = words.get(i).unwrap().to_lowercase().to_string();
 
         if word.is_empty() { continue; }
 
         // functions
-        if word.to_string() == ":" && !state.print_quote {
+        if word == ":" && !state.print_quote {
             // collect whole function, then resume later
             let mut function: String = String::new();
             let mut function_name: String = String::new();
@@ -132,13 +134,13 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 func_index += 1;
             }
             // TODO if last index isn't ; then error
-            state.defined_words.insert(function_name, function.trim().to_string());
+            state.defined_words.insert(function_name.to_lowercase(), function.trim().to_string());
             i = func_index + 1;
             continue;
         }
 
         // variables
-        if word.to_lowercase().to_string() == "variable" && !state.print_quote {
+        if word == "variable" && !state.print_quote {
             //TODO err if last index isn't name of var
             //TODO figure out how variables are set/created, etc. I think it still just refers to the stack
             if stack.len() == 0 {
@@ -153,7 +155,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         // constants
-        if word.to_lowercase().to_string() == "constant" && !state.print_quote {
+        if word == "constant" && !state.print_quote {
             //TODO err if last index isn't name of const
             if stack.len() == 0 {
                 return Err(Error::from(underflow_err().unwrap_err()));
@@ -167,7 +169,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         // loop
-        if word.to_lowercase().to_string() == "loop" && !state.print_quote {
+        if word == "loop" && !state.print_quote {
             if state.control_stack.len() < 1 {
                 return Err(Error::from(underflow_err().unwrap_err()));
             }
@@ -185,7 +187,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         // if
-        if word.to_lowercase().to_string() == "if" && !state.print_quote {
+        if word == "if" && !state.print_quote {
             //TODO support nested ifs
 
             // see if true, otherwise skip it
@@ -242,7 +244,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         //else
-        if word.to_lowercase().to_string() == "else" && !state.print_quote {
+        if word == "else" && !state.print_quote {
             //TODO support nested ifs
 
             // if if was false, continue as normal, otherwise skip it
@@ -279,7 +281,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             continue;
         }
 
-        let result = run_word(stack, state, i as i64, word);
+        let result = run_word(stack, state, i as i64, &word);
         if result.is_ok() {
             let out = result.unwrap();
             output.push(out.output);
@@ -299,9 +301,9 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 }
 
 //TODO maybe have a word stack as well, instead of state. might need to have a state machine state var as well with like " or : as the contents
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> Result<InterpretResult, String> {
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) -> Result<InterpretResult, String> {
     if state.print_quote && word != "\"" {
-        return Ok(InterpretResult::new_str(word))
+        return Ok(InterpretResult::new(word.clone()))
     }
     if state.print_quote && word == "\"" {
         state.print_quote = false;
@@ -316,10 +318,12 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
 
     //try to parse hex
     let without_prefix = word.trim_start_matches("$");
-    let z = i64::from_str_radix(without_prefix, 16);
-    if z.is_ok() && word != without_prefix {
-        stack.push(z.unwrap());
-        return blank_ok();
+    if word != without_prefix {
+        let z = i64::from_str_radix(without_prefix, 16);
+        if z.is_ok() {
+            stack.push(z.unwrap());
+            return blank_ok();
+        }
     }
 
     // must be an actual word
@@ -559,8 +563,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
             Ok(out)
         }
         _ => {
-            if state.defined_words.contains_key(word) {
-                let result = run_line(stack, state, String::from(state.defined_words.get(word).unwrap()));
+            if state.defined_words.contains_key(&*word) {
+                let result = run_line(stack, state, String::from(state.defined_words.get(&*word).unwrap()));
                 return if result.is_ok() {
                     let mut out = String::new();
                     for s in result.unwrap() {
@@ -572,8 +576,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str) -> 
                 };
             }
 
-            if state.variables.contains_key(word) {
-                stack.push(*state.variables.get(word).unwrap());
+            if state.variables.contains_key(&*word) {
+                stack.push(*state.variables.get(&*word).unwrap());
                 return blank_ok();
             }
 
