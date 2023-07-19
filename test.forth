@@ -41,4 +41,6 @@
 \ fb ( -- )
 ." Define fizzbuzz... " : fb 37 1 DO I mainloop LOOP ;
 ." Run it! " fb
+." Nested Ifs 1 " 1 1 IF ." First " IF ." Second " THEN ELSE ." Else " IF ." True In Else " THEN THEN
+." Nested Ifs 0 " 0 0 IF ." A " IF ." B " THEN ELSE ." C " IF ." True In Else " ELSE ." E " THEN THEN
 ." Report memory usage... " .S

@@ -37,7 +37,6 @@ struct State {
     variables: HashMap<String, i64>,
     // also serves constants
     control_stack: Vec<ControlStackFrame>,
-    print_quote: bool,
 }
 
 #[derive(Debug)]
@@ -65,7 +64,11 @@ impl InterpretResult {
 fn main() -> Result<(), Error> {
     let mut stack = Vec::with_capacity(10);
     let mut state: State;
-    state = State { defined_words: HashMap::with_capacity(5), variables: Default::default(), control_stack: Vec::with_capacity(3), print_quote: false };
+    state = State {
+        defined_words: HashMap::with_capacity(5),
+        variables: Default::default(),
+        control_stack: Vec::with_capacity(3),
+    };
 
     // read in words from std (or file eventually) and evaluate
     let path = match std::env::args_os().nth(1) {
@@ -88,7 +91,7 @@ fn main() -> Result<(), Error> {
 
     for line in input.lines() {
         let l = line.unwrap();
-        if l.is_empty() { continue }
+        if l.is_empty() { continue; }
         let line_result = run_line(&mut stack, &mut state, l);
         if line_result.is_ok() {
             for out in line_result.unwrap() {
@@ -116,8 +119,23 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         if word.is_empty() { continue; }
 
+        if word == ".\"" {
+            // now find the end, and print the whole thing
+            let mut quote_index = i + 1;
+            while quote_index < words.len() && words.get(quote_index).unwrap().to_string() != "\"" {
+                quote_index += 1;
+            }
+
+            // grab the words between i and quote index, then concat and add to output
+            let out = &words[i + 1..quote_index].join(" ");
+            output.push(out.clone());
+
+            i = quote_index + 1;
+            continue;
+        }
+
         // functions
-        if word == ":" && !state.print_quote {
+        if word == ":" {
             // collect whole function, then resume later
             let mut function: String = String::new();
             let mut function_name: String = String::new();
@@ -140,7 +158,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         // variables
-        if word == "variable" && !state.print_quote {
+        if word == "variable" {
             //TODO err if last index isn't name of var
             //TODO figure out how variables are set/created, etc. I think it still just refers to the stack
             if stack.len() == 0 {
@@ -148,28 +166,28 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             }
             let name = words.get(i + 1).unwrap();
             let loc = (stack.len() - 1) as i64; // use the stack location for now //TODO fix this later
-            state.variables.insert(name.to_string(), loc);
+            state.variables.insert(name.to_lowercase(), loc);
 
             i = i + 2;
             continue;
         }
 
         // constants
-        if word == "constant" && !state.print_quote {
+        if word == "constant" {
             //TODO err if last index isn't name of const
             if stack.len() == 0 {
                 return Err(Error::from(underflow_err().unwrap_err()));
             }
             let name = words.get(i + 1).unwrap();
             let val = stack.pop().unwrap();
-            state.variables.insert(name.to_string(), val);
+            state.variables.insert(name.to_lowercase(), val);
 
             i = i + 2;
             continue;
         }
 
         // loop
-        if word == "loop" && !state.print_quote {
+        if word == "loop" {
             if state.control_stack.len() < 1 {
                 return Err(Error::from(underflow_err().unwrap_err()));
             }
@@ -187,7 +205,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         // if
-        if word == "if" && !state.print_quote {
+        if word == "if" {
             //TODO support nested ifs
 
             // see if true, otherwise skip it
@@ -211,10 +229,17 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 });
 
                 let mut if_index = i + 1;
+                let mut nested = 0;
                 while if_index < words.len() &&
-                    !(words.get(if_index).unwrap().to_lowercase().to_string() == "else" ||
-                        words.get(if_index).unwrap().to_lowercase().to_string() == "then" ||
-                        words.get(if_index).unwrap().to_lowercase().to_string() == "if") {
+                    (!(words.get(if_index).unwrap().to_lowercase().to_string() == "else" ||
+                        words.get(if_index).unwrap().to_lowercase().to_string() == "then") || nested > 0) {
+                    // then we need to deal with a nested if scenario
+                    if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
+                        nested += 1;
+                    }
+                    if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
+                        nested -= 1;
+                    }
                     if_index += 1;
                 }
 
@@ -244,7 +269,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
         }
 
         //else
-        if word == "else" && !state.print_quote {
+        if word == "else" {
             //TODO support nested ifs
 
             // if if was false, continue as normal, otherwise skip it
@@ -254,9 +279,16 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             }
 
             let mut if_index = i + 1;
+            let mut nested = 0;
             while if_index < words.len() &&
-                !(words.get(if_index).unwrap().to_lowercase().to_string() == "then" ||
-                    words.get(if_index).unwrap().to_lowercase().to_string() == "if") {
+                (!(words.get(if_index).unwrap().to_lowercase().to_string() == "then") || nested > 0) {
+                // then we need to deal with a nested if scenario
+                if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
+                    nested += 1;
+                }
+                if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
+                    nested -= 1;
+                }
                 if_index += 1;
             }
 
@@ -300,16 +332,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
     return Ok(output);
 }
 
-//TODO maybe have a word stack as well, instead of state. might need to have a state machine state var as well with like " or : as the contents
 fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) -> Result<InterpretResult, String> {
-    if state.print_quote && word != "\"" {
-        return Ok(InterpretResult::new(word.clone()))
-    }
-    if state.print_quote && word == "\"" {
-        state.print_quote = false;
-        return blank_ok();
-    }
-
     let int = word.parse::<i64>();
     if int.is_ok() {
         stack.push(int.unwrap());
@@ -551,10 +574,6 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) 
             stack.clear();
             state.variables.clear();
             state.control_stack.clear();
-            blank_ok()
-        }
-        ".\"" => {
-            state.print_quote = true;
             blank_ok()
         }
         "\\" => {
