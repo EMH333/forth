@@ -120,7 +120,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
             let quote_last_index = skip_quote(i, &words);
 
             // grab the words between i and quote index, then concat and add to output
-            let out = &words[i + 1..quote_last_index-1].join(" ");
+            let out = &words[i + 1..quote_last_index - 1].join(" ");
             writer.write_all(out.as_ref()).expect("Could not write output");
 
             i = quote_last_index;
@@ -219,31 +219,32 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
                     if_result: IfResult::False,
                 });
 
+
                 let mut if_index = i + 1;
                 let mut nested = 0;
-                while if_index < words.len() &&
-                    (!(words.get(if_index).unwrap().to_lowercase().to_string() == "else" ||
-                        words.get(if_index).unwrap().to_lowercase().to_string() == "then") || nested > 0) {
+                let mut if_word = words.get(if_index).unwrap().to_lowercase().to_string();
+                while if_index < words.len() && (!(if_word == "else" || if_word == "then") || nested > 0) {
                     let new_index = skip_quote(if_index, &words);
                     if if_index == new_index {
                         // then we need to deal with a nested if scenario
-                        if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
+                        if if_word == "if" {
                             nested += 1;
                         }
-                        if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
+                        if if_word == "then" {
                             nested -= 1;
                         }
                         if_index += 1;
                     } else {
                         if_index = new_index;
                     }
+                    if_word = words.get(if_index).unwrap().to_lowercase().to_string()
                 }
 
                 if if_index >= words.len() {
                     return Err(Error::from("No closing else or then"));
                 }
 
-                match words.get(if_index).unwrap().to_lowercase().as_str() {
+                match if_word.as_str() {
                     "else" => {
                         // we want to run this, but keep the if on the control stack
                     }
@@ -270,28 +271,29 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
 
             let mut if_index = i + 1;
             let mut nested = 0;
-            while if_index < words.len() &&
-                (!(words.get(if_index).unwrap().to_lowercase().to_string() == "then") || nested > 0) {
+            let mut else_word = words.get(if_index).unwrap().to_lowercase().to_string();
+            while if_index < words.len() && (!(else_word == "then") || nested > 0) {
                 let new_index = skip_quote(if_index, &words);
                 if if_index == new_index {
                     // then we need to deal with a nested if scenario
-                    if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
+                    if else_word == "if" {
                         nested += 1;
                     }
-                    if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
+                    if else_word == "then" {
                         nested -= 1;
                     }
                     if_index += 1;
                 } else {
                     if_index = new_index;
                 }
+                else_word = words.get(if_index).unwrap().to_lowercase().to_string()
             }
 
             if if_index >= words.len() {
                 return Err(Error::from("No closing then"));
             }
 
-            match words.get(if_index).unwrap().to_lowercase().as_str() {
+            match else_word.as_str() {
                 "then" => {
                     // no else or other craziness, just pop the if from the stack and continue
                     state.control_stack.pop();
@@ -324,9 +326,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
     return Ok("OK".to_string());
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_word: &String, output: &mut LineWriter<&mut dyn Write>) -> Result<InterpretResult, String> {
-    let word = unprocessed_word.to_lowercase();
-
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String, output: &mut LineWriter<&mut dyn Write>) -> Result<InterpretResult, String> {
     let int = word.parse::<i64>();
     if int.is_ok() {
         stack.push(int.unwrap());
@@ -342,7 +342,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_wor
             blank_ok()
         } else {
             Err("Could not parse hex".to_string())
-        }
+        };
     }
 
     //try to parse binary
@@ -354,7 +354,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_wor
             blank_ok()
         } else {
             Err("Could not parse binary".to_string())
-        }
+        };
     }
 
     // must be an actual word
@@ -618,7 +618,7 @@ fn skip_quote(current_index: usize, words: &Vec<&str>) -> usize {
             quote_index += 1;
         }
 
-        return quote_index + 1
+        return quote_index + 1;
     }
     current_index
 }
