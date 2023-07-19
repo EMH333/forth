@@ -3,8 +3,6 @@ use std::io::{BufRead, BufReader};
 use std::string::ToString;
 use std::i64;
 
-//TODO figure out why fizzbuzz isn't working
-
 fn blank_ok() -> Result<InterpretResult, String> {
     Ok(InterpretResult::new_str(""))
 }
@@ -121,16 +119,13 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         if word == ".\"" {
             // now find the end, and print the whole thing
-            let mut quote_index = i + 1;
-            while quote_index < words.len() && words.get(quote_index).unwrap().to_string() != "\"" {
-                quote_index += 1;
-            }
+            let mut quote_last_index = skip_quote(i, &words);
 
             // grab the words between i and quote index, then concat and add to output
-            let out = &words[i + 1..quote_index].join(" ");
+            let out = &words[i + 1..quote_last_index-1].join(" ");
             output.push(out.clone());
 
-            i = quote_index + 1;
+            i = quote_last_index;
             continue;
         }
 
@@ -206,8 +201,6 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         // if
         if word == "if" {
-            //TODO support nested ifs
-
             // see if true, otherwise skip it
             if stack.pop().unwrap() != 0 {
                 //if true, then we pop it on the stack and continue
@@ -233,14 +226,19 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 while if_index < words.len() &&
                     (!(words.get(if_index).unwrap().to_lowercase().to_string() == "else" ||
                         words.get(if_index).unwrap().to_lowercase().to_string() == "then") || nested > 0) {
-                    // then we need to deal with a nested if scenario
-                    if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
-                        nested += 1;
+                    let new_index = skip_quote(if_index, &words);
+                    if if_index == new_index {
+                        // then we need to deal with a nested if scenario
+                        if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
+                            nested += 1;
+                        }
+                        if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
+                            nested -= 1;
+                        }
+                        if_index += 1;
+                    } else {
+                        if_index = new_index;
                     }
-                    if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
-                        nested -= 1;
-                    }
-                    if_index += 1;
                 }
 
                 if if_index >= words.len() {
@@ -248,10 +246,6 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
                 }
 
                 match words.get(if_index).unwrap().to_lowercase().as_str() {
-                    "if" => {
-                        //TODO nested ifs will require more work
-                        todo!()
-                    }
                     "else" => {
                         // we want to run this, but keep the if on the control stack
                     }
@@ -270,8 +264,6 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         //else
         if word == "else" {
-            //TODO support nested ifs
-
             // if if was false, continue as normal, otherwise skip it
             if state.control_stack.last().unwrap().if_result == IfResult::False {
                 i += 1;
@@ -282,14 +274,19 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             let mut nested = 0;
             while if_index < words.len() &&
                 (!(words.get(if_index).unwrap().to_lowercase().to_string() == "then") || nested > 0) {
-                // then we need to deal with a nested if scenario
-                if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
-                    nested += 1;
+                let new_index = skip_quote(if_index, &words);
+                if if_index == new_index {
+                    // then we need to deal with a nested if scenario
+                    if words.get(if_index).unwrap().to_lowercase().to_string() == "if" {
+                        nested += 1;
+                    }
+                    if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
+                        nested -= 1;
+                    }
+                    if_index += 1;
+                } else {
+                    if_index = new_index;
                 }
-                if words.get(if_index).unwrap().to_lowercase().to_string() == "then" {
-                    nested -= 1;
-                }
-                if_index += 1;
             }
 
             if if_index >= words.len() {
@@ -297,10 +294,6 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             }
 
             match words.get(if_index).unwrap().to_lowercase().as_str() {
-                "if" => {
-                    //TODO nested ifs will require more work
-                    todo!()
-                }
                 "then" => {
                     // no else or other craziness, just pop the if from the stack and continue
                     state.control_stack.pop();
@@ -603,4 +596,18 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) 
             Err("Unrecognized word ".to_string() + &word)
         }
     };
+}
+
+// given the current index, if the word is the start of a printed thing, returns the next clear index
+fn skip_quote(current_index: usize, words: &Vec<&str>) -> usize {
+    if words[current_index] == ".\"" {
+        // now find the end, and print the whole thing
+        let mut quote_index = current_index + 1;
+        while quote_index < words.len() && words.get(quote_index).unwrap().to_string() != "\"" {
+            quote_index += 1;
+        }
+
+        return quote_index + 1
+    }
+    current_index
 }
