@@ -334,9 +334,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String, 
     }
 
     //try to parse hex
-    let without_hex_prefix = word.trim_start_matches("$");
-    if word != without_hex_prefix {
-        let z = i64::from_str_radix(without_hex_prefix, 16);
+    if word.starts_with("$") {
+        let z = i64::from_str_radix(&word[1..], 16);
         return if z.is_ok() {
             stack.push(z.unwrap());
             blank_ok()
@@ -346,9 +345,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String, 
     }
 
     //try to parse binary
-    let without_binary_prefix = word.trim_start_matches("%");
-    if word != without_binary_prefix {
-        let b = i64::from_str_radix(without_binary_prefix, 2);
+    if word.starts_with("%") {
+        let b = i64::from_str_radix(&word[1..], 2);
         return if b.is_ok() {
             stack.push(b.unwrap());
             blank_ok()
