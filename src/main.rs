@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, LineWriter, stdout, Write};
+use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
 use std::string::ToString;
 use std::i64;
 
@@ -88,7 +88,7 @@ fn main() -> Result<(), Error> {
     };
 
     let stdo = &mut stdout();
-    let mut writer = Box::new(LineWriter::new((stdo) as &mut dyn Write)) as Box<LineWriter<&mut dyn Write>>;
+    let mut writer = Box::new(BufWriter::new((stdo) as &mut dyn Write)) as Box<BufWriter<&mut dyn Write>>;
     //let writer = out_writer.as_mut();//&mut LineWriter::new((stdout() as LineWriter<dyn Write>));
     for line in input.lines() {
         let l = line.unwrap();
@@ -105,13 +105,13 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut LineWriter<&mut dyn Write>) -> Result<String, Error> {
+fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let words: Vec<&str> = line.split(' ').collect();
 
     let mut i = 0;
 
     while i < words.len() {
-        let word = words.get(i).unwrap().to_lowercase().to_string();
+        let word = words.get(i).unwrap().to_lowercase();
 
         if word.is_empty() { continue; }
 
@@ -306,7 +306,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
             continue;
         }
 
-        let result = run_word(stack, state, i as i64, &word, writer);
+        let result = run_word(stack, state, i as i64, word.as_str(), writer);
         if result.is_ok() {
             let out = result.unwrap();
             //output.push(out.output);
@@ -326,7 +326,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
     return Ok("OK".to_string());
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String, output: &mut LineWriter<&mut dyn Write>) -> Result<InterpretResult, String> {
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str, output: &mut BufWriter<&mut dyn Write>) -> Result<InterpretResult, String> {
     let int = word.parse::<i64>();
     if int.is_ok() {
         stack.push(int.unwrap());
@@ -356,7 +356,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String, 
     }
 
     // must be an actual word
-    return match word.as_str() {
+    return match word {
         "+" => {
             if stack.len() < 2 {
                 stack.clear() //TODO should this be an under flow?
