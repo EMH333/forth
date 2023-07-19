@@ -94,7 +94,7 @@ fn main() -> Result<(), Error> {
     for line in input.lines() {
         let l = line.unwrap();
         if l.is_empty() { continue; }
-        let line_result = run_line(&mut stack, &mut state, l.as_str(), writer.as_mut());
+        let line_result = run_line(&mut stack, &mut state, normalize_line(l).as_str(), writer.as_mut());
         if line_result.is_ok() {
             writer.flush().expect("Couldn't flush writer");
             print!(" OK")
@@ -106,14 +106,35 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
+fn normalize_line(str: String) -> String{
+    // normalize string, by lower casing everything not going to be printed out
+    let words: Vec<&str> = str.split(' ').collect();
+    let mut output: Vec<String> = Vec::with_capacity(words.len());
+    let mut i = 0;
+    while i < words.len() {
+        let quote_last_index = skip_quote(i, &words);
+        if i == quote_last_index {
+            output.push(words[i].to_lowercase());
+
+            i += 1;
+        } else {
+            for j in i..quote_last_index {
+                output.push(words[j].to_string());
+            }
+            i = quote_last_index;
+        }
+
+    }
+    return output.join(" ");
+}
+
 fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let words: Vec<&str> = line.split(' ').collect();
 
     let mut i = 0;
 
     while i < words.len() {
-        //TODO normalize the line as it comes in, instead of each iteration
-        let word = words.get(i).unwrap().to_lowercase();
+        let word = *words.get(i).unwrap();
 
         if word.is_empty() { continue; }
 
@@ -144,7 +165,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
             }
             let function = words[i + 2..func_index].join(" ");
             // TODO if last index isn't ; then error
-            state.defined_words.insert(function_name.to_lowercase(), Rc::new(function.trim().to_string()));
+            state.defined_words.insert(function_name, Rc::new(function.trim().to_string()));
             i = func_index + 1;
             continue;
         }
@@ -158,7 +179,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
             }
             let name = words.get(i + 1).unwrap();
             let loc = (stack.len() - 1) as i64; // use the stack location for now //TODO fix this later
-            state.variables.insert(name.to_lowercase(), loc);
+            state.variables.insert(name.to_string(), loc);
 
             i = i + 2;
             continue;
@@ -172,7 +193,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
             }
             let name = words.get(i + 1).unwrap();
             let val = stack.pop().unwrap();
-            state.variables.insert(name.to_lowercase(), val);
+            state.variables.insert(name.to_string(), val);
 
             i = i + 2;
             continue;
@@ -221,7 +242,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
 
                 let mut if_index = i + 1;
                 let mut nested = 0;
-                let mut if_word = words.get(if_index).unwrap().to_lowercase().to_string();
+                let mut if_word = words.get(if_index).unwrap().to_string();
                 while if_index < words.len() && (!(if_word == "else" || if_word == "then") || nested > 0) {
                     let new_index = skip_quote(if_index, &words);
                     if if_index == new_index {
@@ -236,7 +257,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
                     } else {
                         if_index = new_index;
                     }
-                    if_word = words.get(if_index).unwrap().to_lowercase().to_string()
+                    if_word = words.get(if_index).unwrap().to_string()
                 }
 
                 if if_index >= words.len() {
@@ -270,7 +291,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
 
             let mut if_index = i + 1;
             let mut nested = 0;
-            let mut else_word = words.get(if_index).unwrap().to_lowercase().to_string();
+            let mut else_word = words.get(if_index).unwrap().to_string();
             while if_index < words.len() && (!(else_word == "then") || nested > 0) {
                 let new_index = skip_quote(if_index, &words);
                 if if_index == new_index {
@@ -285,7 +306,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
                 } else {
                     if_index = new_index;
                 }
-                else_word = words.get(if_index).unwrap().to_lowercase().to_string()
+                else_word = words.get(if_index).unwrap().to_string()
             }
 
             if if_index >= words.len() {
@@ -305,7 +326,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut Bu
             continue;
         }
 
-        let result = run_word(stack, state, i as i64, word.as_str(), writer);
+        let result = run_word(stack, state, i as i64, word, writer);
         if result.is_ok() {
             let out = result.unwrap();
             //output.push(out.output);
