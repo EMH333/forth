@@ -119,7 +119,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         if word == ".\"" {
             // now find the end, and print the whole thing
-            let mut quote_last_index = skip_quote(i, &words);
+            let quote_last_index = skip_quote(i, &words);
 
             // grab the words between i and quote index, then concat and add to output
             let out = &words[i + 1..quote_last_index-1].join(" ");
@@ -325,7 +325,9 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
     return Ok(output);
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) -> Result<InterpretResult, String> {
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_word: &String) -> Result<InterpretResult, String> {
+    let word = unprocessed_word.to_lowercase();
+
     let int = word.parse::<i64>();
     if int.is_ok() {
         stack.push(int.unwrap());
@@ -333,17 +335,31 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) 
     }
 
     //try to parse hex
-    let without_prefix = word.trim_start_matches("$");
-    if word != without_prefix {
-        let z = i64::from_str_radix(without_prefix, 16);
-        if z.is_ok() {
+    let without_hex_prefix = word.trim_start_matches("$");
+    if word != without_hex_prefix {
+        let z = i64::from_str_radix(without_hex_prefix, 16);
+        return if z.is_ok() {
             stack.push(z.unwrap());
-            return blank_ok();
+            blank_ok()
+        } else {
+            Err("Could not parse hex".to_string())
+        }
+    }
+
+    //try to parse binary
+    let without_binary_prefix = word.trim_start_matches("%");
+    if word != without_binary_prefix {
+        let b = i64::from_str_radix(without_binary_prefix, 2);
+        return if b.is_ok() {
+            stack.push(b.unwrap());
+            blank_ok()
+        } else {
+            Err("Could not parse binary".to_string())
         }
     }
 
     // must be an actual word
-    return match word.to_lowercase().as_str() {
+    return match word.as_str() {
         "+" => {
             if stack.len() < 2 {
                 stack.clear() //TODO should this be an under flow?
@@ -518,7 +534,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &String) 
             let one = stack.pop().unwrap();
 
             if stack.len() < two as usize {
-                return underflow_err(); //TODO make this an actual different error
+                return Err(format!("! address {} not in memory", two));
             }
 
             stack[two as usize] = one;
