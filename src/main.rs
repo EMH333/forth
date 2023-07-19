@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, LineWriter, stdout, Write};
 use std::string::ToString;
 use std::i64;
 
@@ -87,17 +87,16 @@ fn main() -> Result<(), Error> {
         }
     };
 
+    let stdo = &mut stdout();
+    let mut writer = Box::new(LineWriter::new((stdo) as &mut dyn Write)) as Box<LineWriter<&mut dyn Write>>;
+    //let writer = out_writer.as_mut();//&mut LineWriter::new((stdout() as LineWriter<dyn Write>));
     for line in input.lines() {
         let l = line.unwrap();
         if l.is_empty() { continue; }
-        let line_result = run_line(&mut stack, &mut state, l);
+        let line_result = run_line(&mut stack, &mut state, l, writer.as_mut());
         if line_result.is_ok() {
-            for out in line_result.unwrap() {
-                if !out.is_empty() {
-                    print!("{} ", out)
-                }
-            }
-            print!("OK")
+            writer.flush().expect("Couldn't flush writer");
+            print!(" OK")
         } else {
             return Err(line_result.unwrap_err());
         }
@@ -106,8 +105,7 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec<String>, Error> {
-    let mut output = Vec::new();
+fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut LineWriter<&mut dyn Write>) -> Result<String, Error> {
     let words: Vec<&str> = line.split(' ').collect();
 
     let mut i = 0;
@@ -123,7 +121,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
             // grab the words between i and quote index, then concat and add to output
             let out = &words[i + 1..quote_last_index-1].join(" ");
-            output.push(out.clone());
+            writer.write_all(out.as_ref()).expect("Could not write output");
 
             i = quote_last_index;
             continue;
@@ -306,10 +304,11 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
             continue;
         }
 
-        let result = run_word(stack, state, i as i64, &word);
+        let result = run_word(stack, state, i as i64, &word, writer);
         if result.is_ok() {
             let out = result.unwrap();
-            output.push(out.output);
+            //output.push(out.output);
+            writer.write_all(out.output.as_ref()).expect("Could not write out");
             if out.skip_line {
                 break;
             }
@@ -322,10 +321,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String) -> Result<Vec
 
         i += 1;
     }
-    return Ok(output);
+    return Ok("OK".to_string());
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_word: &String) -> Result<InterpretResult, String> {
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_word: &String, output: &mut LineWriter<&mut dyn Write>) -> Result<InterpretResult, String> {
     let word = unprocessed_word.to_lowercase();
 
     let int = word.parse::<i64>();
@@ -592,13 +591,9 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, unprocessed_wor
         }
         _ => {
             if state.defined_words.contains_key(&*word) {
-                let result = run_line(stack, state, String::from(state.defined_words.get(&*word).unwrap()));
+                let result = run_line(stack, state, String::from(state.defined_words.get(&*word).unwrap()), output);
                 return if result.is_ok() {
-                    let mut out = String::new();
-                    for s in result.unwrap() {
-                        out += &*s;
-                    }
-                    Ok(InterpretResult::new(out))
+                    blank_ok()
                 } else {
                     Err(result.unwrap_err().to_string())
                 };
