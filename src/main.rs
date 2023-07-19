@@ -111,6 +111,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
     let mut i = 0;
 
     while i < words.len() {
+        //TODO normalize the line as it comes in, instead of each iteration
         let word = words.get(i).unwrap().to_lowercase();
 
         if word.is_empty() { continue; }
@@ -130,20 +131,17 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
         // functions
         if word == ":" {
             // collect whole function, then resume later
-            let mut function: String = String::new();
             let mut function_name: String = String::new();
             let mut func_index = i + 1;
             while func_index < words.len() && words.get(func_index).unwrap().to_string() != ";" {
                 // get function name
                 if i + 1 == func_index {
                     function_name = words.get(func_index).unwrap().to_string();
-                } else {
-                    function.push(' ');
-                    function.push_str(words.get(func_index).unwrap());
                 }
 
                 func_index += 1;
             }
+            let function = words[i + 2..func_index].join(" ");
             // TODO if last index isn't ; then error
             state.defined_words.insert(function_name.to_lowercase(), function.trim().to_string());
             i = func_index + 1;
