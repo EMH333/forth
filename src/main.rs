@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
 use std::string::ToString;
 use std::i64;
+use std::rc::Rc;
 
 fn blank_ok() -> Result<InterpretResult, String> {
     Ok(InterpretResult::new_str(""))
@@ -31,7 +32,7 @@ struct ControlStackFrame {
 
 #[derive(Debug)]
 struct State {
-    defined_words: HashMap<String, String>,
+    defined_words: HashMap<String, Rc<String>>,
     variables: HashMap<String, i64>,
     // also serves constants
     control_stack: Vec<ControlStackFrame>,
@@ -93,7 +94,7 @@ fn main() -> Result<(), Error> {
     for line in input.lines() {
         let l = line.unwrap();
         if l.is_empty() { continue; }
-        let line_result = run_line(&mut stack, &mut state, l, writer.as_mut());
+        let line_result = run_line(&mut stack, &mut state, l.as_str(), writer.as_mut());
         if line_result.is_ok() {
             writer.flush().expect("Couldn't flush writer");
             print!(" OK")
@@ -105,7 +106,7 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
+fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let words: Vec<&str> = line.split(' ').collect();
 
     let mut i = 0;
@@ -143,7 +144,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, line: String, writer: &mut 
             }
             let function = words[i + 2..func_index].join(" ");
             // TODO if last index isn't ; then error
-            state.defined_words.insert(function_name.to_lowercase(), function.trim().to_string());
+            state.defined_words.insert(function_name.to_lowercase(), Rc::new(function.trim().to_string()));
             i = func_index + 1;
             continue;
         }
@@ -587,7 +588,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &str, out
         }
         _ => {
             if state.defined_words.contains_key(&*word) {
-                let result = run_line(stack, state, String::from(state.defined_words.get(&*word).unwrap()), output);
+                let command = state.defined_words.get(&*word).unwrap().clone();
+                let result = run_line(stack, state, command.as_str(), output);
                 return if result.is_ok() {
                     blank_ok()
                 } else {
