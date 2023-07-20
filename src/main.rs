@@ -1,8 +1,11 @@
+mod parsing;
+
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
 use std::string::ToString;
 use std::i64;
 use std::rc::Rc;
+use crate::parsing::parse_line;
 
 fn blank_ok() -> Result<InterpretResult, String> {
     Ok(InterpretResult::new_str(""))
@@ -94,7 +97,9 @@ fn main() -> Result<(), Error> {
     for line in input.lines() {
         let l = line.unwrap();
         if l.is_empty() { continue; }
-        let line_result = run_line(&mut stack, &mut state, normalize_line(l).as_str(), writer.as_mut());
+        let normalized_line = normalize_line(l);
+        println!("{:?}", parse_line(normalized_line.clone()).unwrap());
+        let line_result = run_line(&mut stack, &mut state, normalized_line.as_str(), writer.as_mut());
         if line_result.is_ok() {
             writer.flush().expect("Couldn't flush writer");
             print!(" OK")
@@ -128,6 +133,9 @@ fn normalize_line(str: String) -> String{
     return output.join(" ");
 }
 
+//TODO long term, migrate to seperate parse and run methods so functions execute quicker since they are already parsed
+// This will require a stream of symbols, as well as a stream of ints, strings, or other data to go along with them
+// This will also make it much easier to make optimizations (such as ROT ROT or DO I)
 fn run_line(stack: &mut Vec<i64>, state: &mut State, line: &str, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let words: Vec<&str> = line.split(' ').collect();
 
