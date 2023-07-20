@@ -1,14 +1,15 @@
 use std::str::FromStr;
 use crate::skip_quote;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Hash, Eq, Clone)]
 pub(crate) enum Word {
     Dot,
     // name of function being declared
     Function(String),
     EndFunction,
-    Variable,
-    Constant,
+    // name of var/const
+    Variable(String),
+    Constant(String),
     Loop,
     Do,
     // relative offset to else or then
@@ -48,17 +49,17 @@ impl FromStr for Word {
 
     fn from_str(input: &str) -> Result<Word, Self::Err> {
         match input.to_lowercase().as_str() {
-            "." => Ok(Word::Dot),
             // needs to be filled in later
             ":" => Ok(Word::Function(String::new())),
             ";" => Ok(Word::EndFunction),
-            "variable" => Ok(Word::Variable),
-            "constant" => Ok(Word::Constant),
-            "loop" => Ok(Word::Loop),
-            "do" => Ok(Word::Do),
-            // needs to be filled in later
+            "variable" => Ok(Word::Variable(String::new())),
+            "constant" => Ok(Word::Constant(String::new())),
             "if" => Ok(Word::If(0)),
             "else" => Ok(Word::Else(0)),
+
+            "loop" => Ok(Word::Loop),
+            "do" => Ok(Word::Do),
+            "." => Ok(Word::Dot),
             "then" => Ok(Word::Then),
             "+" => Ok(Word::Plus),
             "cr" => Ok(Word::Cr),
@@ -225,6 +226,26 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                         out_words.remove(i + 1);
                     }
                     _ => { return Err("Expected word after :".to_string()); }
+                }
+            }
+            Word::Variable(_) => {
+                let next = out_words.get(i + 1).unwrap();
+                match next {
+                    Word::Word(x) => {
+                        out_words[i] = Word::Variable((*x).clone());
+                        out_words.remove(i + 1);
+                    }
+                    _ => { return Err("Expected word after variable".to_string()); }
+                }
+            }
+            Word::Constant(_) => {
+                let next = out_words.get(i + 1).unwrap();
+                match next {
+                    Word::Word(x) => {
+                        out_words[i] = Word::Constant((*x).clone());
+                        out_words.remove(i + 1);
+                    }
+                    _ => { return Err("Expected word after constant".to_string()); }
                 }
             }
             _ => {
