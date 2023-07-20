@@ -99,7 +99,7 @@ fn main() -> Result<(), Error> {
         if l.is_empty() { continue; }
         let parsed_line = parse_line(normalize_line(l).clone()).unwrap();
         //println!("{:?}", parsed_line);
-        let line_result = run_line(&mut stack, &mut state, parsed_line, writer.as_mut());
+        let line_result = run_line(&mut stack, &mut state, &parsed_line, writer.as_mut());
         if line_result.is_ok() {
             writer.flush().expect("Couldn't flush writer");
             print!(" OK")
@@ -132,7 +132,7 @@ fn normalize_line(str: String) -> String {
     return output.join(" ");
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, words: Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
+fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let mut i = 0;
 
     while i < words.len() {
@@ -476,7 +476,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
         Word::Word(raw_word) => {
             if state.defined_words.contains_key(raw_word) {
                 let command = state.defined_words.get(raw_word).unwrap().clone();
-                let result = run_line(stack, state, command.to_vec(), output);
+                let result = run_line(stack, state, &*command, output);
                 return if result.is_ok() {
                     blank_ok()
                 } else {
