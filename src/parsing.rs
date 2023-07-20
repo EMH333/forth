@@ -42,6 +42,10 @@ pub(crate) enum Word {
     Number(i64),
     // quote. really means ." and "
     Quote(String),
+
+    //special optimizations
+    DoubleRot,
+    EqZero,
 }
 
 impl FromStr for Word {
@@ -248,6 +252,32 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                     _ => { return Err("Expected word after constant".to_string()); }
                 }
             }
+
+            Word::Rot => {
+                let next = out_words.get(i + 1).unwrap();
+                match next {
+                    Word::Rot => {
+                        out_words[i] = Word::DoubleRot;
+                        out_words.remove(i + 1);
+                    }
+                    _ => {
+                        // no action
+                    }
+                }
+            }
+
+            Word::Number(0) => {
+                let next = out_words.get(i + 1).unwrap();
+                match next {
+                    Word::Equal => {
+                        out_words[i] = Word::EqZero;
+                        out_words.remove(i + 1);
+                    }
+                    _ => {
+                        // no action
+                    }
+                }
+            }
             _ => {
                 // do nothing on default case
             }
@@ -256,5 +286,5 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
         i += 1;
     }
 
-    return Ok(out_words)
+    return Ok(out_words);
 }

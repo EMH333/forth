@@ -491,6 +491,36 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
 
             Err("Unrecognized word ".to_string() + &*format!("{:?}", word))
         }
+
+        //optimizations
+        Word::DoubleRot => {
+            if stack.len() < 3 {
+                return underflow_err();
+            }
+
+            let three = stack.pop().unwrap();
+            let two = stack.pop().unwrap();
+            let one = stack.pop().unwrap();
+
+            stack.push(three);
+            stack.push(one);
+            stack.push(two);
+            blank_ok()
+        }
+        Word::EqZero => {
+            if stack.len() < 1 {
+                return underflow_err();
+            }
+
+            let one = stack.pop().unwrap();
+
+            if one == 0 {
+                stack.push(1)
+            } else {
+                stack.push(0)
+            }
+            blank_ok()
+        }
         _ => Err("Can't handle ".to_string() + &*format!("{:?}", word))
     };
 }
