@@ -1,5 +1,6 @@
 mod parsing;
 
+use ahash::RandomState;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
 use std::string::ToString;
@@ -8,7 +9,7 @@ use std::rc::Rc;
 use crate::parsing::{parse_line, Word};
 
 fn blank_ok() -> Result<InterpretResult, String> {
-    Ok(InterpretResult::new_str(""))
+    Ok(InterpretResult::new_blank())
 }
 
 fn underflow_err() -> Result<InterpretResult, String> {
@@ -35,29 +36,42 @@ struct ControlStackFrame {
 
 #[derive(Debug)]
 struct State {
-    defined_words: HashMap<String, Rc<Vec<Word>>>,
-    variables: HashMap<String, i64>,
+    defined_words: HashMap<String, Rc<Vec<Word>>, RandomState>,
+    variables: HashMap<String, i64, RandomState>,
     // also serves constants
     control_stack: Vec<ControlStackFrame>,
 }
 
 #[derive(Debug)]
+enum InterpretOutput {
+    String(String),
+    Blank,
+}
+
+#[derive(Debug)]
 struct InterpretResult {
-    output: String,
+    output: InterpretOutput,
     skip_line: bool,
 }
 
 impl InterpretResult {
     fn new(out: String) -> InterpretResult {
         InterpretResult {
-            output: out,
+            output: InterpretOutput::String(out),
             skip_line: false,
         }
     }
 
     fn new_str(out: &str) -> InterpretResult {
         InterpretResult {
-            output: out.to_string(),
+            output: InterpretOutput::String(out.to_string()),
+            skip_line: false,
+        }
+    }
+
+    fn new_blank() -> InterpretResult {
+        InterpretResult {
+            output: InterpretOutput::Blank,
             skip_line: false,
         }
     }
@@ -67,8 +81,8 @@ fn main() -> Result<(), Error> {
     let mut stack = Vec::with_capacity(10);
     let mut state: State;
     state = State {
-        defined_words: HashMap::with_capacity(5),
-        variables: Default::default(),
+        defined_words: HashMap::with_capacity_and_hasher(5, RandomState::new()),
+        variables: HashMap::with_capacity_and_hasher(5, RandomState::new()),
         control_stack: Vec::with_capacity(3),
     };
 
@@ -223,7 +237,12 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 if result.is_ok() {
                     let out = result.unwrap();
                     //output.push(out.output);
-                    writer.write_all(out.output.as_ref()).expect("Could not write out");
+                    match out.output {
+                        InterpretOutput::String(s) => {
+                            writer.write_all(s.as_ref()).expect("Could not write out");
+                        }
+                        InterpretOutput::Blank => {}
+                    }
                     if out.skip_line {
                         break;
                     }

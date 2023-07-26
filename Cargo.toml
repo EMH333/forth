@@ -11,3 +11,4 @@ panic = 'abort'
 #strip = 'symbols'
 
 [dependencies]
+ahash = "0.8.3"
