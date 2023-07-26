@@ -18,14 +18,14 @@ fn underflow_err() -> Result<InterpretResult, String> {
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum IfResult {
     DontCare,
     True,
     False,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ControlStackFrame {
     index: i64,
     limit: i64,
@@ -34,9 +34,16 @@ struct ControlStackFrame {
     if_result: IfResult,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+struct DefinedWord {
+    words: Rc<Vec<Word>>,
+    has_been_inlined: bool,
+    inline_count: i32, // number of times tried to inline, prevents recursion
+}
+
+#[derive(Debug, Clone)]
 struct State {
-    defined_words: HashMap<String, Rc<Vec<Word>>, RandomState>,
+    defined_words: HashMap<String, DefinedWord, RandomState>,
     variables: HashMap<String, i64, RandomState>,
     // also serves constants
     control_stack: Vec<ControlStackFrame>,
@@ -146,6 +153,28 @@ fn normalize_line(str: String) -> String {
     return output.join(" ");
 }
 
+fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> Vec<Word> {
+    let mut output: Vec<Word> = Vec::with_capacity(words.len());
+
+    for word in words {
+        match word {
+            // inline functions if already defined
+            Word::Word(raw_word) => {
+                let defined_word = defined_words.get(raw_word);
+                if defined_word.is_some() {
+                    let command = defined_word.unwrap().clone();
+                    output.append(&mut (*command.words).clone());
+                }
+            }
+            _ => {
+                output.push(word.clone());
+            }
+        }
+    }
+
+    return output
+}
+
 fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let mut i = 0;
 
@@ -164,7 +193,11 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 }
                 let function = &words[i + 1..func_index];
                 // TODO if last index isn't ; then error
-                state.defined_words.insert(function_name.clone(), Rc::new(function.to_vec()));
+                state.defined_words.insert(function_name.clone(), DefinedWord {
+                    words: Rc::new(function.to_vec()),
+                    has_been_inlined: false,
+                    inline_count: 0,
+                });
 
                 i = func_index
             }
@@ -494,7 +527,20 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             let defined_word = state.defined_words.get(raw_word);
             if defined_word.is_some() {
                 let command = defined_word.unwrap().clone();
-                let result = run_line(stack, state, &*command, output);
+                let result = run_line(stack, state, &*command.words, output);
+
+                // this is a slow path, but that's fine because it is only run a few times per function
+                // note the 16 here prevents functions from being unrolled recursively
+                if !command.has_been_inlined && command.inline_count < 16 {
+                    let output = inline_function(&*command.words, state.clone().defined_words);
+                    let len = output.len();
+                    state.defined_words.insert(raw_word.clone(), DefinedWord {
+                        words: Rc::new(output),
+                        has_been_inlined: len == command.words.len(), // only consider a function fully inlined if the size doesn't change
+                        inline_count: command.inline_count + 1,
+                    });
+                }
+
                 return if result.is_ok() {
                     blank_ok()
                 } else {
