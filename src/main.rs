@@ -269,7 +269,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
         }
         Word::Plus => {
             if stack.len() < 2 {
-                stack.clear() //TODO should this be an under flow?
+                return underflow_err()
             }
             let one = stack.pop().unwrap();
             let two = stack.pop().unwrap();
@@ -390,10 +390,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
                 return underflow_err();
             }
 
-            let one = stack.pop().unwrap();
-
-            stack.push(one);
-            stack.push(one);
+            let one = stack.last().unwrap(); // don't pop if unneeded
+            stack.push(*one);
 
             blank_ok()
         }
@@ -493,8 +491,9 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             blank_ok()
         }
         Word::Word(raw_word) => {
-            if state.defined_words.contains_key(raw_word) {
-                let command = state.defined_words.get(raw_word).unwrap().clone();
+            let defined_word = state.defined_words.get(raw_word);
+            if defined_word.is_some() {
+                let command = defined_word.unwrap().clone();
                 let result = run_line(stack, state, &*command, output);
                 return if result.is_ok() {
                     blank_ok()
