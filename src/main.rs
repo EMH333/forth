@@ -164,6 +164,8 @@ fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord
                 if defined_word.is_some() {
                     let command = defined_word.unwrap().clone();
                     output.append(&mut (*command.words).clone());
+                } else {
+                    output.push(word.clone())
                 }
             }
             _ => {
