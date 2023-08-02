@@ -194,20 +194,19 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 state.variables.insert(name.clone(), val);
             }
             Word::Loop => {
-                if state.control_stack.is_empty() {
+                if let Some(mut last) = state.control_stack.pop() {
+                    last.index += 1;
+
+                    if last.index < last.limit {
+                        i = last.loop_start as usize;
+                        state.control_stack.push(last);
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                } else {
                     return Err(Error::from(underflow_err().unwrap_err()));
                 }
-
-                let mut last = state.control_stack.pop().unwrap();
-                last.index += 1;
-
-                if last.index < last.limit {
-                    i = last.loop_start as usize;
-                    state.control_stack.push(last);
-                } else {
-                    i += 1;
-                }
-                continue;
             }
             Word::If(next) => {
                 // see if true, otherwise skip it
