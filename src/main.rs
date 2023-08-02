@@ -31,6 +31,17 @@ struct ControlStackFrame {
     if_result: IfResult,
 }
 
+impl ControlStackFrame {
+    fn new_if(res: IfResult) -> ControlStackFrame {
+        ControlStackFrame {
+            index: 0,
+            limit: 0,
+            loop_start: 0,
+            if_result: res,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct DefinedWord {
     words: Rc<Vec<Word>>,
@@ -202,30 +213,34 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 // see if true, otherwise skip it
                 if stack.pop().unwrap() != 0 {
                     //if true, then we pop it on the stack and continue
-                    state.control_stack.push(ControlStackFrame {
-                        index: 0,
-                        limit: 0,
-                        loop_start: 0,
-                        if_result: IfResult::True,
-                    });
+                    state.control_stack.push(ControlStackFrame::new_if(IfResult::True));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.control_stack.push(ControlStackFrame {
-                        index: 0,
-                        limit: 0,
-                        loop_start: 0,
-                        if_result: IfResult::False,
-                    });
+                    state.control_stack.push(ControlStackFrame::new_if(IfResult::False));
 
                     // note, we are letting the i += 1 also run
-                    i += *next as usize;
+                    i += *next;
+                }
+            }
+            // this is an optimization
+            Word::NotIf(next) => {
+                // see if false (as in, the stack is equal to zero), otherwise skip it
+                if stack.pop().unwrap() == 0 {
+                    //if true, then we pop it on the stack and continue
+                    state.control_stack.push(ControlStackFrame::new_if(IfResult::True));
+                } else {
+                    //if false, then we pop it on the stack and head to the offset
+                    state.control_stack.push(ControlStackFrame::new_if(IfResult::False));
+
+                    // note, we are letting the i += 1 also run
+                    i += *next;
                 }
             }
             Word::Else(next) => {
                 // if it wasn't false, then skip, otherwise continue
                 if state.control_stack.last().unwrap().if_result != IfResult::False {
                     // note, we are letting the i += 1 also run
-                    i += *next as usize;
+                    i += *next;
                 }
             }
             // run everything else through run_word
@@ -361,43 +376,32 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             stack.push(*stack.get(one as usize).unwrap());
         }
         Word::Dup => {
-            if stack.is_empty() {
+            if let Some(one) = stack.last() {
+                stack.push(*one);
+            } else {
                 return underflow_err();
             }
-
-            let one = stack.last().unwrap(); // don't pop if unneeded
-            stack.push(*one);
         }
         Word::Drop => {
-            if stack.is_empty() {
+            if let None = stack.pop() {
                 return underflow_err();
             }
-
-            stack.pop();
         }
         Word::Swap => {
-            if stack.len() < 2 {
+            let len = stack.len();
+            if len < 2 {
                 return underflow_err();
             }
-
-            let two = stack.pop().unwrap();
-            let one = stack.pop().unwrap();
-
-            stack.push(two);
-            stack.push(one);
+            stack.swap(len - 2, len - 1);
         }
         Word::Rot => {
-            if stack.len() < 3 {
+            let len = stack.len();
+            if len < 3 {
                 return underflow_err();
             }
 
-            let three = stack.pop().unwrap();
-            let two = stack.pop().unwrap();
-            let one = stack.pop().unwrap();
-
-            stack.push(two);
-            stack.push(three);
-            stack.push(one);
+            stack.swap(len - 1, len - 2);//one, three, two
+            stack.swap(len - 3, len - 1);//two, three, one
         }
         Word::Exclamation => {
             if stack.len() < 2 {
@@ -414,10 +418,11 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             stack[two as usize] = one;
         }
         Word::I => {
-            if state.control_stack.is_empty() {
+            if let Some(last) = state.control_stack.last() {
+                stack.push(last.index)
+            } else {
                 return underflow_err();
             }
-            stack.push(state.control_stack.last().unwrap().index);
         }
         Word::J => {
             if state.control_stack.len() < 2 {
@@ -487,29 +492,23 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
 
         //optimizations
         Word::DoubleRot => {
-            if stack.len() < 3 {
+            let len = stack.len();
+            if len < 3 {
                 return underflow_err();
             }
 
-            let three = stack.pop().unwrap();
-            let two = stack.pop().unwrap();
-            let one = stack.pop().unwrap();
-
-            stack.push(three);
-            stack.push(one);
-            stack.push(two);
+            stack.swap(len - 1, len - 2);//one, three, two
+            stack.swap(len - 3, len - 2);//three, one, one
         }
         Word::EqZero => {
-            if stack.is_empty() {
-                return underflow_err();
-            }
-
-            let one = stack.pop().unwrap();
-
-            if one == 0 {
-                stack.push(1)
+            if let Some(one) = stack.pop() {
+                if one == 0 {
+                    stack.push(1)
+                } else {
+                    stack.push(0)
+                }
             } else {
-                stack.push(0)
+                return underflow_err();
             }
         }
         _ => { return Err("Can't handle ".to_string() + &*format!("{:?}", word)); }

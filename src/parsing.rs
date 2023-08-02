@@ -13,9 +13,9 @@ pub(crate) enum Word {
     Loop,
     Do,
     // relative offset to else or then
-    If(i64),
+    If(usize),
     // relative offset to end of statement
-    Else(i64),
+    Else(usize),
     Then,
     Plus,
     Cr,
@@ -46,6 +46,7 @@ pub(crate) enum Word {
     //special optimizations
     DoubleRot,
     EqZero,
+    NotIf(usize),
 }
 
 impl FromStr for Word {
@@ -195,7 +196,7 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                     return Err("No closing else or then".to_string());
                 }
 
-                out_words[i] = Word::If((if_index - 1 - i) as i64);
+                out_words[i] = Word::If(if_index - 1 - i);
             }
             Word::Else(_) => {
                 //todo!("Look for then and store relative offset")
@@ -219,7 +220,7 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                     return Err("No closing else or then".to_string());
                 }
 
-                out_words[i] = Word::Else((else_index - 1 - i) as i64);
+                out_words[i] = Word::Else(else_index - 1 - i);
             }
             Word::Function(_) => {
                 let next = out_words.get(i + 1).unwrap();
@@ -251,7 +252,19 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                     _ => { return Err("Expected word after constant".to_string()); }
                 }
             }
+            _ => {
+                // do nothing on default case
+            }
+        }
 
+        i += 1;
+    }
+
+    // third pass does optimizations
+    let mut i = 0;
+    while i < out_words.len() {
+        let word = out_words.get(i).unwrap();
+        match word {
             Word::Rot => {
                 let next = out_words.get(i + 1).unwrap();
                 if next == &Word::Rot {
@@ -261,10 +274,19 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
             }
 
             Word::Number(0) => {
-                let next = out_words.get(i + 1).unwrap();
+                let mut next = out_words.get(i + 1).unwrap();
                 if next == &Word::Equal {
-                    out_words[i] = Word::EqZero;
-                    out_words.remove(i + 1);
+                    next = out_words.get(i + 2).unwrap();
+                    if let Word::If(val) = next {
+                        // if it is `0 = if`, then do notEquals optimization
+                        out_words[i] = Word::NotIf(*val);
+                        out_words.remove(i + 1);
+                        out_words.remove(i + 1);//remove the extraneous operations
+                    } else {
+                        // if it isn't `0 = if`, then just do the eq zero optimization
+                        out_words[i] = Word::EqZero;
+                        out_words.remove(i + 1);
+                    }
                 }
             }
             _ => {
@@ -274,6 +296,7 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
 
         i += 1;
     }
+
 
     Ok(out_words)
 }
