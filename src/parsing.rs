@@ -90,11 +90,11 @@ impl FromStr for Word {
 
 impl Word {
     fn new_quote(str: String) -> Word {
-        return Word::Quote(str);
+        Word::Quote(str)
     }
 
     fn new_num(num: i64) -> Word {
-        return Word::Number(num);
+        Word::Number(num)
     }
 }
 
@@ -127,17 +127,17 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
         }
 
         let int = word.parse::<i64>();
-        if int.is_ok() {
-            out_words.push(Word::new_num(int.unwrap()));
+        if let Ok(val) = int {
+            out_words.push(Word::new_num(val));
             i += 1;
             continue;
         }
 
         //try to parse hex
-        if word.starts_with("$") {
-            let z = i64::from_str_radix(&word[1..], 16);
-            if z.is_ok() {
-                out_words.push(Word::new_num(z.unwrap()));
+        if let Some(stripped) = word.strip_prefix('$') {
+            let z = i64::from_str_radix(stripped, 16);
+            if let Ok(val) = z {
+                out_words.push(Word::new_num(val));
                 i += 1;
                 continue;
             } else {
@@ -146,10 +146,10 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
         }
 
         //try to parse binary
-        if word.starts_with("%") {
-            let b = i64::from_str_radix(&word[1..], 2);
-            if b.is_ok() {
-                out_words.push(Word::new_num(b.unwrap()));
+        if let Some(stripped) = word.strip_prefix('%') {
+            let b = i64::from_str_radix(stripped, 2);
+            if let Ok(val) = b {
+                out_words.push(Word::new_num(val));
                 i += 1;
                 continue;
             } else {
@@ -158,8 +158,7 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
         }
 
         let parsed = Word::from_str(word);
-        if parsed.is_ok() {
-            let parsed_word = parsed.unwrap();
+        if let Ok(parsed_word) = parsed {
             out_words.push(parsed_word);
 
             i += 1;
@@ -255,27 +254,17 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
 
             Word::Rot => {
                 let next = out_words.get(i + 1).unwrap();
-                match next {
-                    Word::Rot => {
-                        out_words[i] = Word::DoubleRot;
-                        out_words.remove(i + 1);
-                    }
-                    _ => {
-                        // no action
-                    }
+                if next == &Word::Rot {
+                    out_words[i] = Word::DoubleRot;
+                    out_words.remove(i + 1);
                 }
             }
 
             Word::Number(0) => {
                 let next = out_words.get(i + 1).unwrap();
-                match next {
-                    Word::Equal => {
-                        out_words[i] = Word::EqZero;
-                        out_words.remove(i + 1);
-                    }
-                    _ => {
-                        // no action
-                    }
+                if next == &Word::Equal {
+                    out_words[i] = Word::EqZero;
+                    out_words.remove(i + 1);
                 }
             }
             _ => {
@@ -286,5 +275,5 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
         i += 1;
     }
 
-    return Ok(out_words);
+    Ok(out_words)
 }

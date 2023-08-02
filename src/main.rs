@@ -121,15 +121,15 @@ fn main() -> Result<(), Error> {
         let parsed_line = parse_line(normalize_line(l).clone()).unwrap();
         //println!("{:?}", parsed_line);
         let line_result = run_line(&mut stack, &mut state, &parsed_line, writer.as_mut());
-        if line_result.is_ok() {
+        if let Err(e) = line_result {
+            return Err(e);
+        } else {
             writer.flush().expect("Couldn't flush writer");
             print!(" OK")
-        } else {
-            return Err(line_result.unwrap_err());
         }
         println!()
     }
-    return Ok(());
+    Ok(())
 }
 
 fn normalize_line(str: String) -> String {
@@ -144,13 +144,13 @@ fn normalize_line(str: String) -> String {
 
             i += 1;
         } else {
-            for j in i..quote_last_index {
-                output.push(words[j].to_string());
+            for word in  words.iter().take(quote_last_index).skip(i) {
+                output.push(word.to_string());
             }
             i = quote_last_index;
         }
     }
-    return output.join(" ");
+    output.join(" ")
 }
 
 fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> Vec<Word> {
@@ -161,8 +161,8 @@ fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord
             // inline functions if already defined
             Word::Word(raw_word) => {
                 let defined_word = defined_words.get(raw_word);
-                if defined_word.is_some() {
-                    let command = defined_word.unwrap().clone();
+                if let Some(cmd) = defined_word {
+                    let command = cmd.clone();
                     output.append(&mut (*command.words).clone());
                 } else {
                     output.push(word.clone())
@@ -174,7 +174,7 @@ fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord
         }
     }
 
-    return output
+    output
 }
 
 fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
@@ -206,7 +206,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             Word::Variable(name) => {
                 //TODO err if last index isn't name of var
                 //TODO figure out how variables are set/created, etc. I think it still just refers to the stack
-                if stack.len() == 0 {
+                if stack.is_empty() {
                     stack.push(0);
                 }
                 let loc = (stack.len() - 1) as i64; // use the stack location for now //TODO fix this later
@@ -214,14 +214,14 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             }
             Word::Constant(name) => {
                 //TODO err if last index isn't name of const
-                if stack.len() == 0 {
+                if stack.is_empty() {
                     return Err(Error::from(underflow_err().unwrap_err()));
                 }
                 let val = stack.pop().unwrap();
                 state.variables.insert(name.clone(), val);
             }
             Word::Loop => {
-                if state.control_stack.len() < 1 {
+                if state.control_stack.is_empty() {
                     return Err(Error::from(underflow_err().unwrap_err()));
                 }
 
@@ -256,21 +256,20 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                     });
 
                     // note, we are letting the i += 1 also run
-                    i = i + (*next as usize);
+                    i += *next as usize;
                 }
             }
             Word::Else(next) => {
                 // if it wasn't false, then skip, otherwise continue
                 if state.control_stack.last().unwrap().if_result != IfResult::False {
                     // note, we are letting the i += 1 also run
-                    i = i + (*next as usize);
+                    i += *next as usize;
                 }
             }
             // run everything else through run_word
             _ => {
                 let result = run_word(stack, state, i as i64, word, writer);
-                if result.is_ok() {
-                    let out = result.unwrap();
+                if let Ok(out) = result {
                     //output.push(out.output);
                     match out.output {
                         InterpretOutput::String(s) => {
@@ -292,7 +291,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
 
         i += 1;
     }
-    return Ok("OK".to_string());
+    Ok("OK".to_string())
 }
 
 fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, output: &mut BufWriter<&mut dyn Write>) -> Result<InterpretResult, String> {
@@ -313,8 +312,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
         }
         Word::Dot => {
             let result = stack.pop();
-            if result.is_some() {
-                return Ok(InterpretResult::new(result.unwrap().to_string()));
+            if let Some(val) = result {
+                return Ok(InterpretResult::new(val.to_string()));
             } else {
                 underflow_err()
             }
@@ -407,7 +406,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             blank_ok()
         }
         Word::At => {
-            if stack.len() < 1 {
+            if stack.is_empty() {
                 return underflow_err();
             }
 
@@ -421,7 +420,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             blank_ok()
         }
         Word::Dup => {
-            if stack.len() < 1 {
+            if stack.is_empty() {
                 return underflow_err();
             }
 
@@ -431,7 +430,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             blank_ok()
         }
         Word::Drop => {
-            if stack.len() < 1 {
+            if stack.is_empty() {
                 return underflow_err();
             }
 
@@ -481,7 +480,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             blank_ok()
         }
         Word::I => {
-            if state.control_stack.len() < 1 {
+            if state.control_stack.is_empty() {
                 return underflow_err();
             }
             stack.push(state.control_stack.last().unwrap().index);
@@ -527,14 +526,14 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
         }
         Word::Word(raw_word) => {
             let defined_word = state.defined_words.get(raw_word);
-            if defined_word.is_some() {
-                let command = defined_word.unwrap().clone();
-                let result = run_line(stack, state, &*command.words, output);
+            if let Some(cmd) = defined_word {
+                let command = cmd.clone();
+                let result = run_line(stack, state, &command.words, output);
 
                 // this is a slow path, but that's fine because it is only run a few times per function
                 // note the 16 here prevents functions from being unrolled recursively
                 if !command.has_been_inlined && command.inline_count < 16 {
-                    let output = inline_function(&*command.words, state.clone().defined_words);
+                    let output = inline_function(&command.words, state.clone().defined_words);
                     let len = output.len();
                     state.defined_words.insert(raw_word.clone(), DefinedWord {
                         words: Rc::new(output),
@@ -543,10 +542,10 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
                     });
                 }
 
-                return if result.is_ok() {
-                    blank_ok()
+                return if let Err(e) = result {
+                    Err(e.to_string())
                 } else {
-                    Err(result.unwrap_err().to_string())
+                    blank_ok()
                 };
             }
 
@@ -574,7 +573,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             blank_ok()
         }
         Word::EqZero => {
-            if stack.len() < 1 {
+            if stack.is_empty() {
                 return underflow_err();
             }
 
@@ -596,7 +595,7 @@ fn skip_quote(current_index: usize, words: &Vec<&str>) -> usize {
     if words[current_index] == ".\"" {
         // now find the end, and print the whole thing
         let mut quote_index = current_index + 1;
-        while quote_index < words.len() && words.get(quote_index).unwrap().to_string() != "\"" {
+        while quote_index < words.len() && *words.get(quote_index).unwrap() != "\"" {
             quote_index += 1;
         }
 
