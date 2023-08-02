@@ -313,13 +313,15 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
         Word::Dot => {
             let result = stack.pop();
             if let Some(val) = result {
-                return Ok(InterpretResult::new(val.to_string()));
+                write!(output, "{}", val).expect("Could not write value");
+                return blank_ok()
             } else {
                 underflow_err()
             }
         }
         Word::Cr => {
-            return Ok(InterpretResult::new_str("\n"));
+            write!(output, "\n").expect("Could not write out newline");
+            blank_ok()
         }
         Word::UDotR => {
             //TODO properly implement
