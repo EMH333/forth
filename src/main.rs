@@ -383,7 +383,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
             }
         }
         Word::Drop => {
-            if let None = stack.pop() {
+            if stack.pop().is_none() {
                 return underflow_err();
             }
         }
