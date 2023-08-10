@@ -91,7 +91,7 @@ fn main() -> Result<(), Error> {
     for line in input.lines() {
         let l = line.unwrap();
         if l.is_empty() { continue; }
-        let parsed_line = parse_line(normalize_line(l).clone()).unwrap();
+        let parsed_line = parse_line(parsing::normalize_line(l).clone()).unwrap();
         //println!("{:?}", parsed_line);
         let line_result = run_line(&mut stack, &mut state, &parsed_line, writer.as_mut());
         if let Err(e) = line_result {
@@ -103,51 +103,6 @@ fn main() -> Result<(), Error> {
         println!()
     }
     Ok(())
-}
-
-fn normalize_line(str: String) -> String {
-    // normalize string, by lower casing everything not going to be printed out
-    let words: Vec<&str> = str.split(' ').collect();
-    let mut output: Vec<String> = Vec::with_capacity(words.len());
-    let mut i = 0;
-    while i < words.len() {
-        let quote_last_index = skip_quote(i, &words);
-        if i == quote_last_index {
-            output.push(words[i].to_lowercase());
-
-            i += 1;
-        } else {
-            for word in words.iter().take(quote_last_index).skip(i) {
-                output.push(word.to_string());
-            }
-            i = quote_last_index;
-        }
-    }
-    output.join(" ")
-}
-
-fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> Vec<Word> {
-    let mut output: Vec<Word> = Vec::with_capacity(words.len());
-
-    for word in words {
-        match word {
-            // inline functions if already defined
-            Word::Word(raw_word) => {
-                let defined_word = defined_words.get(raw_word);
-                if let Some(cmd) = defined_word {
-                    let command = cmd.clone();
-                    output.append(&mut (*command.words).clone());
-                } else {
-                    output.push(word.clone())
-                }
-            }
-            _ => {
-                output.push(word.clone());
-            }
-        }
-    }
-
-    output
 }
 
 fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
@@ -465,7 +420,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
                 // this is a slow path, but that's fine because it is only run a few times per function
                 // note the 16 here prevents functions from being unrolled recursively
                 if !command.has_been_inlined && command.inline_count < 16 {
-                    let output = inline_function(&command.words, state.clone().defined_words);
+                    let output = parsing::inline_function(&command.words, state.clone().defined_words);
                     let len = output.len();
                     state.defined_words.insert(raw_word.clone(), DefinedWord {
                         words: Rc::new(output),
@@ -514,18 +469,4 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
     }
 
     Ok(())
-}
-
-// given the current index, if the word is the start of a printed thing, returns the next clear index
-fn skip_quote(current_index: usize, words: &Vec<&str>) -> usize {
-    if words[current_index] == ".\"" {
-        // now find the end, and print the whole thing
-        let mut quote_index = current_index + 1;
-        while quote_index < words.len() && *words.get(quote_index).unwrap() != "\"" {
-            quote_index += 1;
-        }
-
-        return quote_index + 1;
-    }
-    current_index
 }

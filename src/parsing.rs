@@ -1,5 +1,7 @@
 use std::str::FromStr;
-use crate::skip_quote;
+use std::collections::HashMap;
+use ahash::RandomState;
+use crate::{DefinedWord};
 
 #[derive(PartialEq, Debug, Hash, Eq, Clone)]
 pub(crate) enum Word {
@@ -261,6 +263,13 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
     }
 
     // third pass does optimizations
+    optimization_pass(&mut out_words);
+
+
+    Ok(out_words)
+}
+
+pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
     let mut i = 0;
     while i < out_words.len() {
         let word = out_words.get(i).unwrap();
@@ -296,7 +305,65 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
 
         i += 1;
     }
+}
 
+pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> Vec<Word> {
+    let mut output: Vec<Word> = Vec::with_capacity(words.len());
 
-    Ok(out_words)
+    for word in words {
+        match word {
+            // inline functions if already defined
+            Word::Word(raw_word) => {
+                let defined_word = defined_words.get(raw_word);
+                if let Some(cmd) = defined_word {
+                    let command = cmd.clone();
+                    output.append(&mut (*command.words).clone());
+                } else {
+                    output.push(word.clone())
+                }
+            }
+            _ => {
+                output.push(word.clone());
+            }
+        }
+    }
+
+    optimization_pass(&mut output);
+
+    output
+}
+
+// given the current index, if the word is the start of a printed thing, returns the next clear index
+pub fn skip_quote(current_index: usize, words: &Vec<&str>) -> usize {
+    if words[current_index] == ".\"" {
+        // now find the end, and print the whole thing
+        let mut quote_index = current_index + 1;
+        while quote_index < words.len() && *words.get(quote_index).unwrap() != "\"" {
+            quote_index += 1;
+        }
+
+        return quote_index + 1;
+    }
+    current_index
+}
+
+pub fn normalize_line(str: String) -> String {
+    // normalize string, by lower casing everything not going to be printed out
+    let words: Vec<&str> = str.split(' ').collect();
+    let mut output: Vec<String> = Vec::with_capacity(words.len());
+    let mut i = 0;
+    while i < words.len() {
+        let quote_last_index = skip_quote(i, &words);
+        if i == quote_last_index {
+            output.push(words[i].to_lowercase());
+
+            i += 1;
+        } else {
+            for word in words.iter().take(quote_last_index).skip(i) {
+                output.push(word.to_string());
+            }
+            i = quote_last_index;
+        }
+    }
+    output.join(" ")
 }
