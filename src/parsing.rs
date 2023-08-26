@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::collections::HashMap;
-use ahash::RandomState;
-use crate::{DefinedWord};
+use ahash::{HashSet, HashSetExt, RandomState};
+use crate::{DefinedWord, State};
 
 #[derive(PartialEq, Debug, Hash, Eq, Clone)]
 pub(crate) enum Word {
@@ -307,8 +307,9 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
     }
 }
 
-pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> Vec<Word> {
+pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> (Vec<Word>, HashSet<String>) {
     let mut output: Vec<Word> = Vec::with_capacity(words.len());
+    let mut depends: HashSet<String> = HashSet::new();
 
     for word in words {
         match word {
@@ -318,6 +319,7 @@ pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, 
                 if let Some(cmd) = defined_word {
                     let command = cmd.clone();
                     output.append(&mut (*command.words).clone());
+                    depends.insert(raw_word.clone());
                 } else {
                     output.push(word.clone())
                 }
@@ -328,9 +330,10 @@ pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, 
         }
     }
 
+    //make sure and do an optimization pass
     optimization_pass(&mut output);
 
-    output
+    return (output, depends);
 }
 
 // given the current index, if the word is the start of a printed thing, returns the next clear index
@@ -366,4 +369,18 @@ pub fn normalize_line(str: String) -> String {
         }
     }
     output.join(" ")
+}
+
+pub(crate) fn break_inlining(func_name: String, state: &mut State) {
+    for (name, word) in state.defined_words.clone() {
+        // if it depends on the inlined word, then break the dependency
+        if word.depends_on.contains(&*func_name) {
+            let mut new = word.clone();
+            new.words = new.original_words.clone();
+            state.defined_words.insert(name.clone(), new);
+
+            //also break inlining for the functions that depend on the checked function recursively
+            break_inlining(name.clone(), state);
+        }
+    }
 }

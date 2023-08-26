@@ -1,6 +1,6 @@
 mod parsing;
 
-use ahash::RandomState;
+use ahash::{HashSet, HashSetExt, RandomState};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
 use std::string::ToString;
@@ -45,8 +45,10 @@ impl ControlStackFrame {
 #[derive(Debug, Clone)]
 struct DefinedWord {
     words: Rc<Vec<Word>>,
+    original_words: Rc<Vec<Word>>, // so we can revert inlining
     has_been_inlined: bool,
     inline_count: i32, // number of times tried to inline, prevents recursion
+    depends_on: HashSet<String>, // the defined words that have been inlined into this word
 }
 
 #[derive(Debug, Clone)]
@@ -125,8 +127,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 // TODO if last index isn't ; then error
                 state.defined_words.insert(function_name.clone(), DefinedWord {
                     words: Rc::new(function.to_vec()),
+                    original_words: Rc::new(function.to_vec()),
                     has_been_inlined: false,
                     inline_count: 0,
+                    depends_on: HashSet::new(),
                 });
 
                 i = func_index
@@ -420,13 +424,21 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
                 // this is a slow path, but that's fine because it is only run a few times per function
                 // note the 16 here prevents functions from being unrolled recursively
                 if !command.has_been_inlined && command.inline_count < 16 {
-                    let output = parsing::inline_function(&command.words, state.clone().defined_words);
+                    let (output, mut depends) = parsing::inline_function(&command.words, state.defined_words.clone());
                     let len = output.len();
+
+                    command.depends_on.iter().for_each(|f| _ = depends.insert(f.clone()));
+
                     state.defined_words.insert(raw_word.clone(), DefinedWord {
                         words: Rc::new(output),
+                        original_words: command.original_words.clone(),
                         has_been_inlined: len == command.words.len(), // only consider a function fully inlined if the size doesn't change
                         inline_count: command.inline_count + 1,
+                        depends_on: depends,
                     });
+
+                    //now we undo all the inlining that depends on this word to preserve correctness
+                    parsing::break_inlining(raw_word.clone(), state);
                 }
 
                 if let Err(e) = result {
