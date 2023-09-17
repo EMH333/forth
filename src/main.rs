@@ -1,4 +1,5 @@
 mod parsing;
+mod output_cplusplus;
 
 use ahash::{HashSet, HashSetExt, RandomState};
 use std::collections::HashMap;
@@ -6,6 +7,7 @@ use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
 use std::string::ToString;
 use std::i64;
 use std::rc::Rc;
+use crate::output_cplusplus::output_cplusplus;
 use crate::parsing::{parse_line, Word};
 
 
@@ -94,6 +96,9 @@ fn main() -> Result<(), Error> {
         let l = line.unwrap();
         if l.is_empty() { continue; }
         let parsed_line = parse_line(parsing::normalize_line(l).clone()).unwrap();
+
+        try_output_cpp(&parsed_line, &state);
+
         //println!("{:?}", parsed_line);
         let line_result = run_line(&mut stack, &mut state, &parsed_line, writer.as_mut());
         if let Err(e) = line_result {
@@ -102,9 +107,41 @@ fn main() -> Result<(), Error> {
             writer.flush().expect("Couldn't flush writer");
             print!(" OK")
         }
-        println!()
+        println!();
     }
     Ok(())
+}
+
+fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) {
+    if parsed_line.len() == 1 {
+        let func = parsed_line[0].clone();
+        match func {
+            Word::Word(x) => {
+                //make sure it's fully optimized and loop till it is
+                if let Some(line) = state.defined_words.get(&*x) {
+                    let to_use: Vec<Word>;
+                    if !line.has_been_inlined {
+                        let mut previous_len = 999;
+                        let mut out: Vec<Word> = line.words.to_vec();
+                        while out.len() != previous_len {
+                            previous_len = out.len();
+                            let (o, _) = parsing::inline_function(&out, state.defined_words.clone());
+                            out = o;
+                            //println!("Optimized {:?} to\n {:?}", line.words, out)
+                        }
+                        to_use = out;
+                    } else {
+                        to_use = line.words.to_vec()
+                    }
+                    let output = output_cplusplus(&to_use);
+                    println!("{}", output);
+                } else {
+                    panic!("Word needs to be defined")
+                }
+            }
+            _ => {}//panic!("Only supports single word line calling a function when printing c++")
+        }
+    }
 }
 
 fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
