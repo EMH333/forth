@@ -112,7 +112,7 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
     while i < words.len() {
         let word = *words.get(i).unwrap();
 
-        if word == "\\" {
+        if word == "\\" || word == "" {
             break;
         }
 
@@ -275,10 +275,11 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
         let word = out_words.get(i).unwrap();
         match word {
             Word::Rot => {
-                let next = out_words.get(i + 1).unwrap();
-                if next == &Word::Rot {
-                    out_words[i] = Word::DoubleRot;
-                    out_words.remove(i + 1);
+                if let Some(next) = out_words.get(i + 1) {
+                    if next == &Word::Rot {
+                        out_words[i] = Word::DoubleRot;
+                        out_words.remove(i + 1);
+                    }
                 }
             }
 
@@ -307,7 +308,7 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
     }
 }
 
-pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> (Vec<Word>, HashSet<String>) {
+pub(crate) fn inline_function(func_name: &String, words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> (Vec<Word>, HashSet<String>) {
     let mut output: Vec<Word> = Vec::with_capacity(words.len());
     let mut depends: HashSet<String> = HashSet::new();
 
@@ -316,7 +317,10 @@ pub(crate) fn inline_function(words: &Vec<Word>, defined_words: HashMap<String, 
             // inline functions if already defined
             Word::Word(raw_word) => {
                 let defined_word = defined_words.get(raw_word);
-                if let Some(cmd) = defined_word {
+                // don't inline recursion for now
+                if raw_word == func_name {
+                    output.push(word.clone())
+                } else if let Some(cmd) = defined_word {
                     let command = cmd.clone();
                     output.append(&mut (*command.words).clone());
                     depends.insert(raw_word.clone());
@@ -373,8 +377,8 @@ pub fn normalize_line(str: String) -> String {
 
 pub(crate) fn break_inlining(func_name: String, state: &mut State) {
     for (name, word) in state.defined_words.clone() {
-        // if it depends on the inlined word, then break the dependency
-        if word.depends_on.contains(&*func_name) {
+        // if it depends on the inlined word, then break the dependency (assuming not recursive call)
+        if word.depends_on.contains(&*func_name) && name != func_name {
             let mut new = word.clone();
             new.words = new.original_words.clone();
             state.defined_words.insert(name.clone(), new);

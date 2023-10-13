@@ -10,9 +10,13 @@ use std::rc::Rc;
 use crate::output_cplusplus::output_cplusplus;
 use crate::parsing::{parse_line, Word};
 
+const MAX_CONTROL_LENGTH: usize = 1000;
 
 fn underflow_err() -> Result<(), String> {
     Err("Stack Underflow".to_string())
+}
+fn control_stack_overflow_err() -> Result<(), String> {
+    Err("Control Stack Overflow".to_string())
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -125,7 +129,7 @@ fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) {
                         let mut out: Vec<Word> = line.words.to_vec();
                         while out.len() != previous_len {
                             previous_len = out.len();
-                            let (o, _) = parsing::inline_function(&out, state.defined_words.clone());
+                            let (o, _) = parsing::inline_function(&x, &out, state.defined_words.clone());
                             out = o;
                             //println!("Optimized {:?} to\n {:?}", line.words, out)
                         }
@@ -136,7 +140,7 @@ fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) {
                     let output = output_cplusplus(&to_use);
                     println!("{}", output);
                 } else {
-                    panic!("Word needs to be defined")
+                    println!("Word needs to be defined to generate cpp")
                 }
             }
             _ => {}//panic!("Only supports single word line calling a function when printing c++")
@@ -205,6 +209,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 }
             }
             Word::If(next) => {
+                if state.control_stack.len() > MAX_CONTROL_LENGTH {
+                    return Err(Error::from(control_stack_overflow_err().unwrap_err()));
+                }
+                
                 // see if true, otherwise skip it
                 if stack.pop().unwrap() != 0 {
                     //if true, then we pop it on the stack and continue
@@ -219,6 +227,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             }
             // this is an optimization
             Word::NotIf(next) => {
+                if state.control_stack.len() > MAX_CONTROL_LENGTH {
+                    return Err(Error::from(control_stack_overflow_err().unwrap_err()));
+                }
+
                 // see if false (as in, the stack is equal to zero), otherwise skip it
                 if stack.pop().unwrap() == 0 {
                     //if true, then we pop it on the stack and continue
@@ -461,7 +473,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, ou
                 // this is a slow path, but that's fine because it is only run a few times per function
                 // note the 16 here prevents functions from being unrolled recursively
                 if !command.has_been_inlined && command.inline_count < 16 {
-                    let (output, mut depends) = parsing::inline_function(&command.words, state.defined_words.clone());
+                    let (output, mut depends) = parsing::inline_function(raw_word, &command.words, state.defined_words.clone());
                     let len = output.len();
 
                     command.depends_on.iter().for_each(|f| _ = depends.insert(f.clone()));
