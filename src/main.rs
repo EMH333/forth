@@ -32,7 +32,7 @@ enum IfResult {
 struct ControlStackFrame {
     index: i64,
     limit: i64,
-    loop_start: i64,
+    loop_start: usize,
     // the index of the line where the loop starts (after DO)
     if_result: IfResult,
 }
@@ -198,7 +198,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                     last.index += 1;
 
                     if last.index < last.limit {
-                        i = last.loop_start as usize;
+                        i = last.loop_start;
                         state.control_stack.push(last);
                     } else {
                         i += 1;
@@ -252,7 +252,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             }
             // run everything else through run_word
             _ => {
-                let result = run_word(stack, state, i as i64, word, writer);
+                let result = run_word(stack, state, i, word, writer);
                 if let Err(e) = result {
                     println!("Err word: {:?}", word);
                     println!("{:?}", state);
@@ -267,7 +267,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
     Ok("OK".to_string())
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: i64, word: &Word, output: &mut BufWriter<&mut dyn Write>) -> Result<(), String> {
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, output: &mut BufWriter<&mut dyn Write>) -> Result<(), String> {
     // must be an actual word
     match word {
         Word::Number(n) => {
