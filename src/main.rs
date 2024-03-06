@@ -15,6 +15,7 @@ const MAX_CONTROL_LENGTH: usize = 1000;
 fn underflow_err() -> Result<(), String> {
     Err("Stack Underflow".to_string())
 }
+
 fn control_stack_overflow_err() -> Result<(), String> {
     Err("Control Stack Overflow".to_string())
 }
@@ -51,9 +52,11 @@ impl ControlStackFrame {
 #[derive(Debug, Clone)]
 struct DefinedWord {
     words: Rc<Vec<Word>>,
-    original_words: Rc<Vec<Word>>, // so we can revert inlining
+    original_words: Rc<Vec<Word>>,
+    // so we can revert inlining
     has_been_inlined: bool,
-    inline_count: i32, // number of times tried to inline, prevents recursion
+    inline_count: i32,
+    // number of times tried to inline, prevents recursion
     depends_on: HashSet<String>, // the defined words that have been inlined into this word
 }
 
@@ -93,6 +96,8 @@ fn main() -> Result<(), Error> {
         }
     };
 
+    let only_print_cpp = if std::env::args_os().len() == 3 { true } else { false };
+
     let stdo = &mut stdout();
     let mut writer = Box::new(BufWriter::new((stdo) as &mut dyn Write)) as Box<BufWriter<&mut dyn Write>>;
     //let writer = out_writer.as_mut();//&mut LineWriter::new((stdout() as LineWriter<dyn Write>));
@@ -101,7 +106,11 @@ fn main() -> Result<(), Error> {
         if l.is_empty() { continue; }
         let parsed_line = parse_line(parsing::normalize_line(l).clone()).unwrap();
 
-        try_output_cpp(&parsed_line, &state);
+        let out_cpp = try_output_cpp(&parsed_line, &state);
+        if only_print_cpp && out_cpp.is_some(){
+            println!("{}", out_cpp.unwrap());
+            return Ok(())
+        }
 
         //println!("{:?}", parsed_line);
         let line_result = run_line(&mut stack, &mut state, &parsed_line, writer.as_mut());
@@ -116,7 +125,7 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) {
+fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) -> Option<String> {
     if parsed_line.len() == 1 {
         let func = parsed_line[0].clone();
         match func {
@@ -138,14 +147,15 @@ fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) {
                         to_use = line.words.to_vec()
                     }
                     let output = output_cplusplus(&to_use);
-                    println!("{}", output);
+                    return Some(output)
                 } else {
-                    println!("Word needs to be defined to generate cpp")
+                    return Some("Word needs to be defined to generate cpp".to_string())
                 }
             }
             _ => {}//panic!("Only supports single word line calling a function when printing c++")
         }
     }
+    return None
 }
 
 fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
@@ -212,7 +222,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 if state.control_stack.len() > MAX_CONTROL_LENGTH {
                     return Err(Error::from(control_stack_overflow_err().unwrap_err()));
                 }
-                
+
                 // see if true, otherwise skip it
                 if stack.pop().unwrap() != 0 {
                     //if true, then we pop it on the stack and continue
@@ -526,6 +536,16 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
                 return underflow_err();
             }
         }
+        Word::DupModConst(n) => {
+            if stack.len() < 1 {
+                return underflow_err();
+            }
+
+            let one = stack.last().unwrap();
+
+            stack.push(one % n);
+        }
+
         _ => { return Err("Can't handle ".to_string() + &*format!("{:?}", word)); }
     }
 

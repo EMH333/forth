@@ -114,6 +114,9 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
             Word::NotIf(_) => {
                 output.push_str("if (pop(&stack) == 0) {\n");
             }
+            Word::DupModConst(n) => {
+                output.push_str(&*("{int64 one = stack.back(); stack.push_back( one % ".to_owned() + n.to_string().as_str() + ");}\n"));
+            }
 
             Word::Variable(_) => {
                 todo!()

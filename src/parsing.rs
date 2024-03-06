@@ -49,6 +49,7 @@ pub(crate) enum Word {
     DoubleRot,
     EqZero,
     NotIf(usize),
+    DupModConst(i64),
 }
 
 impl FromStr for Word {
@@ -296,6 +297,19 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                         // if it isn't `0 = if`, then just do the eq zero optimization
                         out_words[i] = Word::EqZero;
                         out_words.remove(i + 1);
+                    }
+                }
+            }
+            Word::Dup => {
+                // handle dup, number, mod (and eventually other operations)
+                let mut next = out_words.get(i + 1).unwrap();
+                if let Word::Number(val) = next{
+                    next = out_words.get(i + 2).unwrap();
+                    if next == &Word::Mod {
+                        // if it is `dup x mod`, then do a constant mod optimization
+                        out_words[i] = Word::DupModConst(*val);
+                        out_words.remove(i + 1);
+                        out_words.remove(i + 1);//remove the extraneous operations
                     }
                 }
             }

@@ -8,3 +8,11 @@ My goal was to beat the [Gforth](https://www.gnu.org/software/gforth/) implement
 My implementation (while implementing significantly fewer features) is able to achieve around 50MiB/s as measured via `./forth ../../test_files/benchmark.forth | pv > /dev/null`.
 
 One of the primary ways I was able to achieve this is by aggressively inlining function calls. More work is needed for this to maintain program correctness, but the basic implementation is working.
+
+Profiling can be done with
+```
+perf record -g -p `pidof ./forth`
+```
+and then analyzing the data with `perf report -i perf.data`
+
+If two arguments are provided to the program, it will attempt to output a C++ program from the forth code. When compiled, this will often result in a much faster program.
