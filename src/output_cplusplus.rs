@@ -13,7 +13,7 @@ pub(crate) fn output_cplusplus(input: &Vec<Word>) -> String {
 #define int64 int64_t
 
 int64 pop(std::vector<int64> *stack) {
-    int64 x = stack->back();
+    const int64 x = stack->back();
     stack->pop_back();
     return x;
 }
@@ -46,7 +46,7 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("stack.push_back(stack.back());\n")
             }
             Word::Swap => {
-                output.push_str("{int64 x = pop(&stack); int64 y = pop(&stack); stack.push_back(x); stack.push_back(y);}\n")
+                output.push_str("{const int64 size = stack.size(); const int64 two = stack[size-1]; const int64 one = stack[size-2]; stack[size-2] = two; stack[size-1] = one;}\n")
             }
             Word::Number(x) => {
                 output.push_str(&*("stack.push_back(".to_owned() + x.to_string().as_str() + ");\n"))
@@ -70,7 +70,7 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("}\n")
             }
             Word::Plus => {
-                output.push_str("stack.push_back(pop(&stack) + pop(&stack));\n")
+                output.push_str("{const int64 size = stack.size(); stack[size-2] += pop(&stack);}\n")
             }
             Word::Cr => {
                 output.push_str("std::cout << '\\n';\n")
@@ -97,7 +97,8 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("stack.pop_back();\n")
             }
             Word::Rot => {
-                output.push_str("{int64 three = pop(&stack); int64 two = pop(&stack); int64 one = pop(&stack); stack.push_back(two); stack.push_back(three); stack.push_back(one);}\n")
+                // 1 2 3 => 2 3 1
+                output.push_str("{const int64 size = stack.size(); const int64 three = stack[size-1]; const int64 two = stack[size-2]; const int64 one = stack[size-3]; stack[size-3] = two; stack[size-2] = three; stack[size-1] = one;}\n")
             }
             Word::I => {
                 output.push_str("stack.push_back(i);\n")
@@ -106,16 +107,17 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str(&*("std::cout << \"".to_owned() + w + "\";\n"))
             }
             Word::DoubleRot => {
-                output.push_str("{int64 three = pop(&stack); int64 two = pop(&stack); int64 one = pop(&stack); stack.push_back(three); stack.push_back(one); stack.push_back(two);}\n")
+                // 1 2 3 => 3 1 2
+                output.push_str("{const int64 size = stack.size(); const int64 three = stack[size-1]; const int64 two = stack[size-2]; const int64 one = stack[size-3]; stack[size-3] = three; stack[size-2] = one; stack[size-1] = two;}\n")
             }
             Word::EqZero => {
-                output.push_str("if (pop(&stack) == 0) { stack.push_back(1); } else { stack.push_back(0); }\n")
+                output.push_str("if (stack.back() == 0) { stack[stack.size()-1] = 1; } else { stack[stack.size()-1] = 0; }\n")
             }
             Word::NotIf(_) => {
                 output.push_str("if (pop(&stack) == 0) {\n");
             }
             Word::DupModConst(n) => {
-                output.push_str(&*("{int64 one = stack.back(); stack.push_back( one % ".to_owned() + n.to_string().as_str() + ");}\n"));
+                output.push_str(&*("stack.push_back( stack.back() % ".to_owned() + n.to_string().as_str() + ");\n"));
             }
 
             Word::Variable(_) => {

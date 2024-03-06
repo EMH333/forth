@@ -523,7 +523,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             }
 
             stack.swap(len - 1, len - 2);//one, three, two
-            stack.swap(len - 3, len - 2);//three, one, one
+            stack.swap(len - 3, len - 2);//three, one, two
         }
         Word::EqZero => {
             if let Some(one) = stack.pop() {
