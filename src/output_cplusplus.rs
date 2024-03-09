@@ -104,7 +104,7 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("stack.push_back(i);\n")
             }
             Word::Quote(w) => {
-                output.push_str(&*("std::cout << \"".to_owned() + w + "\";\n"))
+                output.push_str(&*("std::cout << \"".to_owned() + &*w.replace("\n", "\\n") + "\";\n"))
             }
             Word::OnePlus => {
                 output.push_str("{const int64 size = stack.size(); stack[size-1] += 1;}\n")
@@ -137,7 +137,8 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 todo!()
             }
             Word::PlusLoop => {
-                //todo
+                // -1 since the loop already increments by 1
+                output.push_str("i += pop(&stack) - 1;\n}\n")
             }
 
             //unsupported for now
