@@ -476,6 +476,14 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             state.if_control_stack.clear();
             state.loop_control_stack.clear();
         }
+        Word::OnePlus => {
+            let len = stack.len();
+            if len >= 1 {
+                stack[len-1] += 1
+            } else {
+                return underflow_err();
+            }
+        }
         Word::Word(raw_word) => {
             let defined_word = state.defined_words.get(raw_word);
             if let Some(cmd) = defined_word {

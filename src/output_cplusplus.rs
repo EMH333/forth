@@ -106,6 +106,10 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
             Word::Quote(w) => {
                 output.push_str(&*("std::cout << \"".to_owned() + w + "\";\n"))
             }
+            Word::OnePlus => {
+                output.push_str("{const int64 size = stack.size(); stack[size-1] += 1;}\n")
+            }
+
             Word::DoubleRot => {
                 // 1 2 3 => 3 1 2
                 output.push_str("{const int64 size = stack.size(); const int64 three = stack[size-1]; const int64 two = stack[size-2]; const int64 one = stack[size-3]; stack[size-3] = three; stack[size-2] = one; stack[size-1] = two;}\n")

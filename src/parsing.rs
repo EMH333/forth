@@ -37,6 +37,7 @@ pub(crate) enum Word {
     I,
     J,
     Reset,
+    OnePlus,
 
     // word is a general placeholder, may be a variable, constant, function call, etc.
     Word(String),
@@ -88,6 +89,7 @@ impl FromStr for Word {
             "i" => Ok(Word::I),
             "j" => Ok(Word::J),
             "reset" => Ok(Word::Reset),
+            "1+" => Ok(Word::OnePlus),
             _ => Ok(Word::Word(input.to_string().clone())),
         }
     }
