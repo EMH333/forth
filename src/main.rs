@@ -24,29 +24,29 @@ type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, PartialEq, Clone)]
 enum IfResult {
-    DontCare,
     True,
     False,
 }
 
 #[derive(Debug, Clone)]
-struct ControlStackFrame {
+struct IfControlStackFrame {
+    if_result: IfResult,
+}
+
+impl IfControlStackFrame {
+    fn new_if(res: IfResult) -> IfControlStackFrame {
+        IfControlStackFrame {
+            if_result: res,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct LoopControlStackFrame {
     index: i64,
     limit: i64,
     loop_start: usize,
     // the index of the line where the loop starts (after DO)
-    if_result: IfResult,
-}
-
-impl ControlStackFrame {
-    fn new_if(res: IfResult) -> ControlStackFrame {
-        ControlStackFrame {
-            index: 0,
-            limit: 0,
-            loop_start: 0,
-            if_result: res,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -65,7 +65,8 @@ struct State {
     defined_words: HashMap<String, DefinedWord, RandomState>,
     variables: HashMap<String, i64, RandomState>,
     // also serves constants
-    control_stack: Vec<ControlStackFrame>,
+    if_control_stack: Vec<IfControlStackFrame>,
+    loop_control_stack: Vec<LoopControlStackFrame>,
 }
 
 fn main() -> Result<(), Error> {
@@ -74,7 +75,8 @@ fn main() -> Result<(), Error> {
     state = State {
         defined_words: HashMap::with_capacity_and_hasher(5, RandomState::new()),
         variables: HashMap::with_capacity_and_hasher(5, RandomState::new()),
-        control_stack: Vec::with_capacity(3),
+        if_control_stack: Vec::with_capacity(3),
+        loop_control_stack: Vec::with_capacity(3),
     };
 
     // read in words from std (or file eventually) and evaluate
@@ -204,12 +206,12 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 state.variables.insert(name.clone(), val);
             }
             Word::Loop => {
-                if let Some(mut last) = state.control_stack.pop() {
+                if let Some(mut last) = state.loop_control_stack.pop() {
                     last.index += 1;
 
                     if last.index < last.limit {
                         i = last.loop_start;
-                        state.control_stack.push(last);
+                        state.loop_control_stack.push(last);
                     } else {
                         i += 1;
                     }
@@ -219,17 +221,17 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                 }
             }
             Word::If(next) => {
-                if state.control_stack.len() > MAX_CONTROL_LENGTH {
+                if state.if_control_stack.len() > MAX_CONTROL_LENGTH {
                     return Err(Error::from(control_stack_overflow_err().unwrap_err()));
                 }
 
                 // see if true, otherwise skip it
                 if stack.pop().unwrap() != 0 {
                     //if true, then we pop it on the stack and continue
-                    state.control_stack.push(ControlStackFrame::new_if(IfResult::True));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::True));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.control_stack.push(ControlStackFrame::new_if(IfResult::False));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::False));
 
                     // note, we are letting the i += 1 also run
                     i += *next;
@@ -237,17 +239,17 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             }
             // this is an optimization
             Word::NotIf(next) => {
-                if state.control_stack.len() > MAX_CONTROL_LENGTH {
+                if state.if_control_stack.len() > MAX_CONTROL_LENGTH {
                     return Err(Error::from(control_stack_overflow_err().unwrap_err()));
                 }
 
                 // see if false (as in, the stack is equal to zero), otherwise skip it
                 if stack.pop().unwrap() == 0 {
                     //if true, then we pop it on the stack and continue
-                    state.control_stack.push(ControlStackFrame::new_if(IfResult::True));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::True));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.control_stack.push(ControlStackFrame::new_if(IfResult::False));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::False));
 
                     // note, we are letting the i += 1 also run
                     i += *next;
@@ -255,7 +257,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             }
             Word::Else(next) => {
                 // if it wasn't false, then skip, otherwise continue
-                if state.control_stack.last().unwrap().if_result != IfResult::False {
+                if state.if_control_stack.last().unwrap().if_result != IfResult::False {
                     // note, we are letting the i += 1 also run
                     i += *next;
                 }
@@ -435,17 +437,17 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             stack[two as usize] = one;
         }
         Word::I => {
-            if let Some(last) = state.control_stack.last() {
+            if let Some(last) = state.loop_control_stack.last() {
                 stack.push(last.index)
             } else {
                 return underflow_err();
             }
         }
         Word::J => {
-            if state.control_stack.len() < 2 {
+            if state.loop_control_stack.len() < 2 {
                 return underflow_err();
             }
-            stack.push(state.control_stack[state.control_stack.len() - 2].index);
+            stack.push(state.loop_control_stack[state.loop_control_stack.len() - 2].index);
         }
         Word::Do => {
             if stack.len() < 2 {
@@ -455,24 +457,24 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             let two = stack.pop().unwrap();
             let one = stack.pop().unwrap();
 
-            let frame = ControlStackFrame {
+            let frame = LoopControlStackFrame {
                 index: two,
                 limit: one,
                 loop_start: index + 1,
-                if_result: IfResult::DontCare,
             };
 
-            state.control_stack.push(frame);
+            state.loop_control_stack.push(frame);
         }
         Word::Then => {
             // must have come from an executed part of an if statement, safe to remove from control stack
-            state.control_stack.pop();
+            state.if_control_stack.pop();
         }
         Word::Reset => {
             //don't do a ton at this point, will be useful later
             stack.clear();
             state.variables.clear();
-            state.control_stack.clear();
+            state.if_control_stack.clear();
+            state.loop_control_stack.clear();
         }
         Word::Word(raw_word) => {
             let defined_word = state.defined_words.get(raw_word);
