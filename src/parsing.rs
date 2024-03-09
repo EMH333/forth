@@ -118,7 +118,7 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
     while i < words.len() {
         let word = *words.get(i).unwrap();
 
-        if word == "\\" || word == "" {
+        if word == "\\" || word.is_empty() {
             break;
         }
 
@@ -378,11 +378,11 @@ pub(crate) fn inline_function(func_name: &String, words: &Vec<Word>, defined_wor
     //make sure and do an optimization pass
     optimization_pass(&mut output);
 
-    return (output, depends);
+    (output, depends)
 }
 
 // given the current index, if the word is the start of a printed thing, returns the next clear index
-pub fn skip_quote(current_index: usize, words: &Vec<&str>) -> usize {
+pub fn skip_quote(current_index: usize, words: &[&str]) -> usize {
     if words[current_index] == ".\"" {
         // now find the end, and print the whole thing
         let mut quote_index = current_index + 1;

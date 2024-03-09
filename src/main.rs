@@ -98,7 +98,7 @@ fn main() -> Result<(), Error> {
         }
     };
 
-    let only_print_cpp = if std::env::args_os().len() == 3 { true } else { false };
+    let only_print_cpp = std::env::args_os().len() == 3;
 
     let stdo = &mut stdout();
     let mut writer = Box::new(BufWriter::new((stdo) as &mut dyn Write)) as Box<BufWriter<&mut dyn Write>>;
@@ -109,9 +109,9 @@ fn main() -> Result<(), Error> {
         let parsed_line = parse_line(parsing::normalize_line(l).clone()).unwrap();
 
         let out_cpp = try_output_cpp(&parsed_line, &state);
-        if only_print_cpp && out_cpp.is_some(){
+        if only_print_cpp && out_cpp.is_some() {
             println!("{}", out_cpp.unwrap());
-            return Ok(())
+            return Ok(());
         }
 
         //println!("{:?}", parsed_line);
@@ -127,40 +127,37 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn try_output_cpp(parsed_line: &Vec<Word>, state: &State) -> Option<String> {
+fn try_output_cpp(parsed_line: &[Word], state: &State) -> Option<String> {
     if parsed_line.len() == 1 {
         let func = parsed_line[0].clone();
-        match func {
-            Word::Word(x) => {
-                //make sure it's fully optimized and loop till it is
-                if let Some(line) = state.defined_words.get(&*x) {
-                    let to_use: Vec<Word>;
-                    if !line.has_been_inlined {
-                        let mut previous_len = 999;
-                        let mut out: Vec<Word> = line.words.to_vec();
-                        while out.len() != previous_len {
-                            previous_len = out.len();
-                            let (o, _) = parsing::inline_function(&x, &out, state.defined_words.clone());
-                            out = o;
-                            //println!("Optimized {:?} to\n {:?}", line.words, out)
-                        }
-                        to_use = out;
-                    } else {
-                        to_use = line.words.to_vec()
+        if let Word::Word(x) = func {
+            //make sure it's fully optimized and loop till it is
+            return if let Some(line) = state.defined_words.get(&*x) {
+                let to_use: Vec<Word>;
+                if !line.has_been_inlined {
+                    let mut previous_len = 999;
+                    let mut out: Vec<Word> = line.words.to_vec();
+                    while out.len() != previous_len {
+                        previous_len = out.len();
+                        let (o, _) = parsing::inline_function(&x, &out, state.defined_words.clone());
+                        out = o;
+                        //println!("Optimized {:?} to\n {:?}", line.words, out)
                     }
-                    let output = output_cplusplus(&to_use);
-                    return Some(output)
+                    to_use = out;
                 } else {
-                    return Some("Word needs to be defined to generate cpp".to_string())
+                    to_use = line.words.to_vec()
                 }
+                let output = output_cplusplus(&to_use);
+                Some(output)
+            } else {
+                Some("Word needs to be defined to generate cpp".to_string())
             }
-            _ => {}//panic!("Only supports single word line calling a function when printing c++")
         }
     }
-    return None
+    None
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
+fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
     let mut i = 0;
 
     while i < words.len() {
@@ -222,7 +219,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
             }
             Word::PlusLoop => {
                 if let Some(mut last) = state.loop_control_stack.pop() {
-                    if stack.len() < 1 {
+                    if stack.is_empty() {
                         return Err(Error::from(underflow_err().unwrap_err()));
                     }
                     let increment = stack.pop().unwrap();
@@ -422,7 +419,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             }
         }
         Word::Drop => {
-            if let None = stack.pop() {
+            if stack.pop().is_none() {
                 return underflow_err();
             }
         }
@@ -499,7 +496,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
         Word::OnePlus => {
             let len = stack.len();
             if len >= 1 {
-                stack[len-1] += 1
+                stack[len - 1] += 1
             } else {
                 return underflow_err();
             }
@@ -559,16 +556,16 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             if let Some(one) = stack.last() {
                 let len: usize = stack.len();
                 if *one == 0 {
-                    stack[len-1] = 1
+                    stack[len - 1] = 1
                 } else {
-                    stack[len-1] = 0
+                    stack[len - 1] = 0
                 }
             } else {
                 return underflow_err();
             }
         }
         Word::DupModConst(n) => {
-            if stack.len() < 1 {
+            if stack.is_empty() {
                 return underflow_err();
             }
 

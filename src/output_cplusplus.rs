@@ -25,8 +25,8 @@ std::vector<int64> stack = {};
     output.push_str(HEADER);
 
     output.push_str("//from");
-    output.push_str(&*format!("{:?}", *input));
-    output.push_str("\n");
+    output.push_str(&format!("{:?}", *input));
+    output.push('\n');
 
     // this will add the instructions for the state machine to run
     output.push_str(instruction_tape(&input).as_str());
@@ -49,7 +49,7 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("{const int64 size = stack.size(); const int64 two = stack[size-1]; const int64 one = stack[size-2]; stack[size-2] = two; stack[size-1] = one;}\n")
             }
             Word::Number(x) => {
-                output.push_str(&*("stack.push_back(".to_owned() + x.to_string().as_str() + ");\n"))
+                output.push_str(&("stack.push_back(".to_owned() + x.to_string().as_str() + ");\n"))
             }
             Word::Dot => {
                 output.push_str("printf(\"%ld\", pop(&stack));\n")
@@ -104,7 +104,7 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("stack.push_back(i);\n")
             }
             Word::Quote(w) => {
-                output.push_str(&*("std::cout << \"".to_owned() + &*w.replace("\n", "\\n") + "\";\n"))
+                output.push_str(&("std::cout << \"".to_owned() + &*w.replace('\n', "\\n") + "\";\n"))
             }
             Word::OnePlus => {
                 output.push_str("{const int64 size = stack.size(); stack[size-1] += 1;}\n")
@@ -121,7 +121,7 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 output.push_str("if (pop(&stack) == 0) {\n");
             }
             Word::DupModConst(n) => {
-                output.push_str(&*("stack.push_back( stack.back() % ".to_owned() + n.to_string().as_str() + ");\n"));
+                output.push_str(&("stack.push_back( stack.back() % ".to_owned() + n.to_string().as_str() + ");\n"));
             }
             Word::DotCr => {
                 output.push_str("printf(\"%ld\\n\", pop(&stack));\n")
