@@ -325,6 +325,21 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                     }
                 }
             }
+            Word::Quote(val) => {
+                if let Some(next) = out_words.get(i + 1) {
+                    match next {
+                        Word::Cr => {
+                            out_words[i] = Word::Quote(val.to_owned() + "\n");
+                            out_words.remove(i + 1);
+                        }
+                        Word::Quote(inner) => {
+                            out_words[i] = Word::Quote(val.to_owned() + inner);
+                            out_words.remove(i + 1);
+                        }
+                        _ => {}
+                    }
+                }
+            }
             _ => {
                 // do nothing on default case
             }
