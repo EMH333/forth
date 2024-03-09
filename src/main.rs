@@ -220,6 +220,26 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &Vec<Word>, writer: 
                     return Err(Error::from(underflow_err().unwrap_err()));
                 }
             }
+            Word::PlusLoop => {
+                if let Some(mut last) = state.loop_control_stack.pop() {
+                    if stack.len() < 1 {
+                        return Err(Error::from(underflow_err().unwrap_err()));
+                    }
+                    let increment = stack.pop().unwrap();
+
+                    last.index += increment;
+
+                    if last.index < last.limit {
+                        i = last.loop_start;
+                        state.loop_control_stack.push(last);
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                } else {
+                    return Err(Error::from(underflow_err().unwrap_err()));
+                }
+            }
             Word::If(next) => {
                 if state.if_control_stack.len() > MAX_CONTROL_LENGTH {
                     return Err(Error::from(control_stack_overflow_err().unwrap_err()));

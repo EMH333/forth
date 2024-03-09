@@ -136,6 +136,9 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
             Word::J => {
                 todo!()
             }
+            Word::PlusLoop => {
+                //todo
+            }
 
             //unsupported for now
             Word::Function(_) => {}
