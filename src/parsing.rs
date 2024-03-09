@@ -50,6 +50,7 @@ pub(crate) enum Word {
     EqZero,
     NotIf(usize),
     DupModConst(i64),
+    DotCr,
 }
 
 impl FromStr for Word {
@@ -283,7 +284,6 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                     }
                 }
             }
-
             Word::Number(0) => {
                 let mut next = out_words.get(i + 1).unwrap();
                 if next == &Word::Equal {
@@ -310,6 +310,14 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                         out_words[i] = Word::DupModConst(*val);
                         out_words.remove(i + 1);
                         out_words.remove(i + 1);//remove the extraneous operations
+                    }
+                }
+            }
+            Word::Dot => {
+                if let Some(next) = out_words.get(i + 1) {
+                    if next == &Word::Cr {
+                        out_words[i] = Word::DotCr;
+                        out_words.remove(i + 1);
                     }
                 }
             }

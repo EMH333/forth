@@ -400,7 +400,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             }
         }
         Word::Drop => {
-            if stack.pop().is_none() {
+            if let None = stack.pop() {
                 return underflow_err();
             }
         }
@@ -526,11 +526,12 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             stack.swap(len - 3, len - 2);//three, one, two
         }
         Word::EqZero => {
-            if let Some(one) = stack.pop() {
-                if one == 0 {
-                    stack.push(1)
+            if let Some(one) = stack.last() {
+                let len: usize = stack.len();
+                if *one == 0 {
+                    stack[len-1] = 1
                 } else {
-                    stack.push(0)
+                    stack[len-1] = 0
                 }
             } else {
                 return underflow_err();
@@ -544,6 +545,14 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
             let one = stack.last().unwrap();
 
             stack.push(one % n);
+        }
+        Word::DotCr => {
+            let result = stack.pop();
+            if let Some(val) = result {
+                writeln!(output, "{}", val).expect("Could not write value");
+            } else {
+                return underflow_err();
+            }
         }
 
         _ => { return Err("Can't handle ".to_string() + &*format!("{:?}", word)); }

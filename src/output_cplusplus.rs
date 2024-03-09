@@ -119,6 +119,9 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
             Word::DupModConst(n) => {
                 output.push_str(&*("stack.push_back( stack.back() % ".to_owned() + n.to_string().as_str() + ");\n"));
             }
+            Word::DotCr => {
+                output.push_str("printf(\"%ld\\n\", pop(&stack));\n")
+            }
 
             Word::Variable(_) => {
                 todo!()
