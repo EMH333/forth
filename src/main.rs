@@ -22,19 +22,13 @@ fn control_stack_overflow_err() -> Result<(), String> {
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-#[derive(Debug, PartialEq, Clone)]
-enum IfResult {
-    True,
-    False,
-}
-
 #[derive(Debug, Clone)]
 struct IfControlStackFrame {
-    if_result: IfResult,
+    if_result: bool,
 }
 
 impl IfControlStackFrame {
-    fn new_if(res: IfResult) -> IfControlStackFrame {
+    fn new_if(res: bool) -> IfControlStackFrame {
         IfControlStackFrame {
             if_result: res,
         }
@@ -245,10 +239,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
                 // see if true, otherwise skip it
                 if stack.pop().unwrap() != 0 {
                     //if true, then we pop it on the stack and continue
-                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::True));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(true));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::False));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(false));
 
                     // note, we are letting the i += 1 also run
                     i += *next;
@@ -263,10 +257,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
                 // see if false (as in, the stack is equal to zero), otherwise skip it
                 if stack.pop().unwrap() == 0 {
                     //if true, then we pop it on the stack and continue
-                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::True));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(true));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.if_control_stack.push(IfControlStackFrame::new_if(IfResult::False));
+                    state.if_control_stack.push(IfControlStackFrame::new_if(false));
 
                     // note, we are letting the i += 1 also run
                     i += *next;
@@ -274,7 +268,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
             }
             Word::Else(next) => {
                 // if it wasn't false, then skip, otherwise continue
-                if state.if_control_stack.last().unwrap().if_result != IfResult::False {
+                if state.if_control_stack.last().unwrap().if_result != false {
                     // note, we are letting the i += 1 also run
                     i += *next;
                 }
