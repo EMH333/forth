@@ -500,8 +500,7 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
         Word::Word(raw_word) => {
             let defined_word = state.defined_words.get(raw_word);
             if let Some(cmd) = defined_word {
-                let command = cmd.clone();
-                let result = run_line(stack, state, &command.words, output);
+                let mut command = cmd.clone();
 
                 // this is a slow path, but that's fine because it is only run a few times per function
                 // note the 16 here prevents functions from being unrolled recursively
@@ -511,18 +510,23 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
 
                     command.depends_on.iter().for_each(|f| _ = depends.insert(f.clone()));
 
-                    state.defined_words.insert(raw_word.clone(), DefinedWord {
+                    let new_command = DefinedWord {
                         words: Rc::new(output),
                         original_words: command.original_words.clone(),
                         has_been_inlined: len == command.words.len(), // only consider a function fully inlined if the size doesn't change
                         inline_count: command.inline_count + 1,
                         depends_on: depends,
-                    });
+                    };
+                    command = new_command.clone(); // update so we use the inlined word as soon as possible
+                    state.defined_words.insert(raw_word.clone(), new_command);
+
 
                     //now we undo all the inlining that depends on this word to preserve correctness
                     parsing::break_inlining(raw_word.clone(), state);
                 }
 
+                //now run the line with all of the inlining complete
+                let result = run_line(stack, state, &command.words, output);
                 if let Err(e) = result {
                     return Err(e.to_string());
                 }
