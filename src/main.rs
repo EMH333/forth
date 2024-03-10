@@ -97,6 +97,7 @@ fn main() -> Result<(), Error> {
 
     let stdo = &mut stdout();
     //let mut writer = Box::new(BufWriter::new((stdo) as &mut dyn Write)) as Box<BufWriter<&mut dyn Write>>;
+    let mut writer = BufWriter::new((stdo) as &mut dyn Write);
     //let writer = out_writer.as_mut();//&mut LineWriter::new((stdout() as LineWriter<dyn Write>));
     for line in input.lines() {
         let l = line.unwrap();
@@ -110,10 +111,11 @@ fn main() -> Result<(), Error> {
         }
 
         //println!("{:?}", parsed_line);
-        let line_result = run_line(&mut stack, &mut state, &parsed_line, (stdo) as &mut dyn Write);
+        let line_result = run_line(&mut stack, &mut state, &parsed_line, &mut writer as &mut dyn Write);
         if let Err(e) = line_result {
             return Err(e);
         } else {
+            writer.flush().expect("Couldn't flush writer");
             print!(" OK")
         }
         println!();
@@ -151,8 +153,7 @@ fn try_output_cpp(parsed_line: &[Word], state: &State) -> Option<String> {
     None
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], output: &mut dyn Write) -> Result<String, Error> {
-    let mut writer = BufWriter::new(output);
+fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mut dyn Write) -> Result<String, Error> {
     let mut i = 0;
 
     while i < words.len() {
@@ -276,7 +277,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], output: &mu
             }
             // run everything else through run_word
             _ => {
-                let result = run_word(stack, state, i, word, &mut writer);
+                let result = run_word(stack, state, i, word, writer);
                 if let Err(e) = result {
                     println!("Err word: {:?}", word);
                     println!("{:?}", state);
@@ -288,11 +289,10 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], output: &mu
 
         i += 1;
     }
-    writer.flush().expect("Couldn't flush writer");
     Ok("OK".to_string())
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, output: &mut BufWriter<&mut dyn Write>) -> Result<(), String> {
+fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, output: &mut dyn Write) -> Result<(), String> {
     // must be an actual word
     match word {
         Word::Number(n) => {
