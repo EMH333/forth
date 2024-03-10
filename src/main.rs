@@ -1,5 +1,6 @@
 mod parsing;
 mod output_cplusplus;
+mod output_test;
 
 use ahash::{HashSet, HashSetExt, RandomState};
 use std::collections::HashMap;
@@ -95,7 +96,7 @@ fn main() -> Result<(), Error> {
     let only_print_cpp = std::env::args_os().len() == 3;
 
     let stdo = &mut stdout();
-    let mut writer = Box::new(BufWriter::new((stdo) as &mut dyn Write)) as Box<BufWriter<&mut dyn Write>>;
+    //let mut writer = Box::new(BufWriter::new((stdo) as &mut dyn Write)) as Box<BufWriter<&mut dyn Write>>;
     //let writer = out_writer.as_mut();//&mut LineWriter::new((stdout() as LineWriter<dyn Write>));
     for line in input.lines() {
         let l = line.unwrap();
@@ -109,11 +110,10 @@ fn main() -> Result<(), Error> {
         }
 
         //println!("{:?}", parsed_line);
-        let line_result = run_line(&mut stack, &mut state, &parsed_line, writer.as_mut());
+        let line_result = run_line(&mut stack, &mut state, &parsed_line, (stdo) as &mut dyn Write);
         if let Err(e) = line_result {
             return Err(e);
         } else {
-            writer.flush().expect("Couldn't flush writer");
             print!(" OK")
         }
         println!();
@@ -145,13 +145,14 @@ fn try_output_cpp(parsed_line: &[Word], state: &State) -> Option<String> {
                 Some(output)
             } else {
                 Some("Word needs to be defined to generate cpp".to_string())
-            }
+            };
         }
     }
     None
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mut BufWriter<&mut dyn Write>) -> Result<String, Error> {
+fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], output: &mut dyn Write) -> Result<String, Error> {
+    let mut writer = BufWriter::new(output);
     let mut i = 0;
 
     while i < words.len() {
@@ -275,7 +276,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
             }
             // run everything else through run_word
             _ => {
-                let result = run_word(stack, state, i, word, writer);
+                let result = run_word(stack, state, i, word, &mut writer);
                 if let Err(e) = result {
                     println!("Err word: {:?}", word);
                     println!("{:?}", state);
@@ -287,6 +288,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
 
         i += 1;
     }
+    writer.flush().expect("Couldn't flush writer");
     Ok("OK".to_string())
 }
 
@@ -567,10 +569,10 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
 
             stack.push(one % n);
         }
-        Word::DotCr => {
+        Word::DotQuote(w) => {
             let result = stack.pop();
             if let Some(val) = result {
-                writeln!(output, "{}", val).expect("Could not write value");
+                write!(output, "{}{}", val, w).expect("Could not write value");
             } else {
                 return underflow_err();
             }

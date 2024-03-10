@@ -52,7 +52,7 @@ pub(crate) enum Word {
     EqZero,
     NotIf(usize),
     DupModConst(i64),
-    DotCr,
+    DotQuote(String), // print top of stack, then the quote all in one
 }
 
 impl FromStr for Word {
@@ -319,9 +319,16 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
             }
             Word::Dot => {
                 if let Some(next) = out_words.get(i + 1) {
-                    if next == &Word::Cr {
-                        out_words[i] = Word::DotCr;
-                        out_words.remove(i + 1);
+                    match next {
+                        Word::Cr => {
+                            out_words[i] = Word::DotQuote("\n".to_string());
+                            out_words.remove(i + 1);
+                        }
+                        Word::Quote(inner) => {
+                            out_words[i] = Word::DotQuote("".to_owned() + inner);
+                            out_words.remove(i + 1);
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -334,6 +341,21 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                         }
                         Word::Quote(inner) => {
                             out_words[i] = Word::Quote(val.to_owned() + inner);
+                            out_words.remove(i + 1);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Word::DotQuote(val) => {
+                if let Some(next) = out_words.get(i + 1) {
+                    match next {
+                        Word::Cr => {
+                            out_words[i] = Word::DotQuote(val.to_owned() + "\n");
+                            out_words.remove(i + 1);
+                        }
+                        Word::Quote(inner) => {
+                            out_words[i] = Word::DotQuote(val.to_owned() + inner);
                             out_words.remove(i + 1);
                         }
                         _ => {}
