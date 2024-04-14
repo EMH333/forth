@@ -6,8 +6,7 @@ pub(crate) fn output_cplusplus(input: &Vec<Word>) -> String {
 
     //we know we always have some things we need to do to set up
     //namely, create the data and control stacks
-    const HEADER: &str =
-        "
+    const HEADER: &str = "
 #include <iostream>
 #include <vector>
 #define int64 int64_t

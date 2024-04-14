@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-    use ahash::{HashMap, RandomState};
     use crate::parsing::parse_line;
-    use crate::{Error, parsing, run_line, State};
-
+    use crate::{parsing, run_line, Error, State};
+    use ahash::{HashMap, RandomState};
+    use std::io::Write;
 
     fn get_output_from_line(l: String) -> Result<String, Error> {
         let mut stack = Vec::with_capacity(10);
@@ -20,12 +19,17 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         let parsed_line = parse_line(parsing::normalize_line(l).clone()).unwrap();
 
-        let line_result = run_line(&mut stack, &mut state, &parsed_line, &mut buffer as &mut dyn Write);
-        return if let Err(e) = line_result {
+        let line_result = run_line(
+            &mut stack,
+            &mut state,
+            &parsed_line,
+            &mut buffer as &mut dyn Write,
+        );
+        if let Err(e) = line_result {
             Err(e)
         } else {
             Ok(String::from_utf8(buffer)?)
-        };
+        }
     }
 
     #[test]

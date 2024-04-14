@@ -1,7 +1,7 @@
-use std::str::FromStr;
-use std::collections::HashMap;
-use ahash::{HashSet, HashSetExt, RandomState};
 use crate::{DefinedWord, State};
+use ahash::{HashSet, HashSetExt, RandomState};
+use std::collections::HashMap;
+use std::str::FromStr;
 
 #[derive(PartialEq, Debug, Hash, Eq, Clone)]
 pub(crate) enum Word {
@@ -187,7 +187,10 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                 let mut if_index = i + 1;
                 let mut nested = 0;
                 let mut if_word = out_words.get(if_index).unwrap();
-                while if_index < out_words.len() && (!(matches!(if_word, Word::Else(_)) || matches!(if_word, Word::Then)) || nested > 0) {
+                while if_index < out_words.len()
+                    && (!(matches!(if_word, Word::Else(_)) || matches!(if_word, Word::Then))
+                        || nested > 0)
+                {
                     // then we need to deal with a nested if scenario
                     if matches!(if_word, Word::If(_)) {
                         nested += 1;
@@ -211,7 +214,9 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                 let mut else_index = i + 1;
                 let mut nested = 0;
                 let mut else_word = out_words.get(else_index).unwrap();
-                while else_index < out_words.len() && (!matches!(else_word,Word::Then) || nested > 0) {
+                while else_index < out_words.len()
+                    && (!matches!(else_word, Word::Then) || nested > 0)
+                {
                     // then we need to deal with a nested if scenario
                     if matches!(else_word, Word::If(_)) {
                         nested += 1;
@@ -237,7 +242,9 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                         out_words[i] = Word::Function((*x).clone());
                         out_words.remove(i + 1);
                     }
-                    _ => { return Err("Expected word after :".to_string()); }
+                    _ => {
+                        return Err("Expected word after :".to_string());
+                    }
                 }
             }
             Word::Variable(_) => {
@@ -247,7 +254,9 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                         out_words[i] = Word::Variable((*x).clone());
                         out_words.remove(i + 1);
                     }
-                    _ => { return Err("Expected word after variable".to_string()); }
+                    _ => {
+                        return Err("Expected word after variable".to_string());
+                    }
                 }
             }
             Word::Constant(_) => {
@@ -257,7 +266,9 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
                         out_words[i] = Word::Constant((*x).clone());
                         out_words.remove(i + 1);
                     }
-                    _ => { return Err("Expected word after constant".to_string()); }
+                    _ => {
+                        return Err("Expected word after constant".to_string());
+                    }
                 }
             }
             _ => {
@@ -270,7 +281,6 @@ pub(crate) fn parse_line(line: String) -> Result<Vec<Word>, String> {
 
     // third pass does optimizations
     optimization_pass(&mut out_words);
-
 
     Ok(out_words)
 }
@@ -296,7 +306,7 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                         // if it is `0 = if`, then do notEquals optimization
                         out_words[i] = Word::NotIf(*val);
                         out_words.remove(i + 1);
-                        out_words.remove(i + 1);//remove the extraneous operations
+                        out_words.remove(i + 1); //remove the extraneous operations
                     } else {
                         // if it isn't `0 = if`, then just do the eq zero optimization
                         out_words[i] = Word::EqZero;
@@ -307,13 +317,13 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
             Word::Dup => {
                 // handle dup, number, mod (and eventually other operations)
                 let mut next = out_words.get(i + 1).unwrap();
-                if let Word::Number(val) = next{
+                if let Word::Number(val) = next {
                     next = out_words.get(i + 2).unwrap();
                     if next == &Word::Mod {
                         // if it is `dup x mod`, then do a constant mod optimization
                         out_words[i] = Word::DupModConst(*val);
                         out_words.remove(i + 1);
-                        out_words.remove(i + 1);//remove the extraneous operations
+                        out_words.remove(i + 1); //remove the extraneous operations
                     }
                 }
             }
@@ -371,7 +381,11 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
     }
 }
 
-pub(crate) fn inline_function(func_name: &String, words: &Vec<Word>, defined_words: HashMap<String, DefinedWord, RandomState>) -> (Vec<Word>, HashSet<String>) {
+pub(crate) fn inline_function(
+    func_name: &String,
+    words: &Vec<Word>,
+    defined_words: HashMap<String, DefinedWord, RandomState>,
+) -> (Vec<Word>, HashSet<String>) {
     let mut output: Vec<Word> = Vec::with_capacity(words.len());
     let mut depends: HashSet<String> = HashSet::new();
 

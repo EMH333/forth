@@ -1,15 +1,15 @@
-mod parsing;
 mod output_cplusplus;
 mod output_test;
+mod parsing;
 
-use ahash::{HashSet, HashSetExt, RandomState};
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader, BufWriter, stdout, Write};
-use std::string::ToString;
-use std::i64;
-use std::rc::Rc;
 use crate::output_cplusplus::output_cplusplus;
 use crate::parsing::{parse_line, Word};
+use ahash::{HashSet, HashSetExt, RandomState};
+use std::collections::HashMap;
+use std::i64;
+use std::io::{stdout, BufRead, BufReader, BufWriter, Write};
+use std::rc::Rc;
+use std::string::ToString;
 
 const MAX_CONTROL_LENGTH: usize = 1000;
 
@@ -30,9 +30,7 @@ struct IfControlStackFrame {
 
 impl IfControlStackFrame {
     fn new_if(res: bool) -> IfControlStackFrame {
-        IfControlStackFrame {
-            if_result: res,
-        }
+        IfControlStackFrame { if_result: res }
     }
 }
 
@@ -62,7 +60,7 @@ struct State {
     // also serves constants
     if_control_stack: Vec<IfControlStackFrame>,
     loop_control_stack: Vec<LoopControlStackFrame>,
-    
+
     // simply a buffer for certain operations
     // must be cleared before use, no guarantees about state
     internal_buffer: Vec<u8>,
@@ -106,7 +104,9 @@ fn main() -> Result<(), Error> {
     //let writer = out_writer.as_mut();//&mut LineWriter::new((stdout() as LineWriter<dyn Write>));
     for line in input.lines() {
         let l = line.unwrap();
-        if l.is_empty() { continue; }
+        if l.is_empty() {
+            continue;
+        }
         let parsed_line = parse_line(parsing::normalize_line(l).clone()).unwrap();
 
         let out_cpp = try_output_cpp(&parsed_line, &state);
@@ -116,7 +116,12 @@ fn main() -> Result<(), Error> {
         }
 
         //println!("{:?}", parsed_line);
-        let line_result = run_line(&mut stack, &mut state, &parsed_line, &mut writer as &mut dyn Write);
+        let line_result = run_line(
+            &mut stack,
+            &mut state,
+            &parsed_line,
+            &mut writer as &mut dyn Write,
+        );
         if let Err(e) = line_result {
             return Err(e);
         } else {
@@ -140,7 +145,8 @@ fn try_output_cpp(parsed_line: &[Word], state: &State) -> Option<String> {
                     let mut out: Vec<Word> = line.words.to_vec();
                     while out.len() != previous_len {
                         previous_len = out.len();
-                        let (o, _) = parsing::inline_function(&x, &out, state.defined_words.clone());
+                        let (o, _) =
+                            parsing::inline_function(&x, &out, state.defined_words.clone());
                         out = o;
                         //println!("Optimized {:?} to\n {:?}", line.words, out)
                     }
@@ -158,7 +164,12 @@ fn try_output_cpp(parsed_line: &[Word], state: &State) -> Option<String> {
     None
 }
 
-fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mut dyn Write) -> Result<String, Error> {
+fn run_line(
+    stack: &mut Vec<i64>,
+    state: &mut State,
+    words: &[Word],
+    writer: &mut dyn Write,
+) -> Result<String, Error> {
     let mut i = 0;
 
     while i < words.len() {
@@ -166,23 +177,30 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
 
         match word {
             Word::Quote(out) => {
-                writer.write_all(out.as_ref()).expect("Could not write output");
+                writer
+                    .write_all(out.as_ref())
+                    .expect("Could not write output");
             }
             Word::Function(function_name) => {
                 // collect whole function, then resume later
                 let mut func_index = i + 1;
-                while func_index < words.len() && !matches!(words.get(func_index).unwrap(), Word::EndFunction) {
+                while func_index < words.len()
+                    && !matches!(words.get(func_index).unwrap(), Word::EndFunction)
+                {
                     func_index += 1;
                 }
                 let function = &words[i + 1..func_index];
                 // TODO if last index isn't ; then error
-                state.defined_words.insert(function_name.clone(), DefinedWord {
-                    words: Rc::new(function.to_vec()),
-                    original_words: Rc::new(function.to_vec()),
-                    has_been_inlined: false,
-                    inline_count: 0,
-                    depends_on: HashSet::new(),
-                });
+                state.defined_words.insert(
+                    function_name.clone(),
+                    DefinedWord {
+                        words: Rc::new(function.to_vec()),
+                        original_words: Rc::new(function.to_vec()),
+                        has_been_inlined: false,
+                        inline_count: 0,
+                        depends_on: HashSet::new(),
+                    },
+                );
 
                 i = func_index
             }
@@ -246,10 +264,14 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
                 // see if true, otherwise skip it
                 if stack.pop().unwrap() != 0 {
                     //if true, then we pop it on the stack and continue
-                    state.if_control_stack.push(IfControlStackFrame::new_if(true));
+                    state
+                        .if_control_stack
+                        .push(IfControlStackFrame::new_if(true));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.if_control_stack.push(IfControlStackFrame::new_if(false));
+                    state
+                        .if_control_stack
+                        .push(IfControlStackFrame::new_if(false));
 
                     // note, we are letting the i += 1 also run
                     i += *next;
@@ -264,10 +286,14 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
                 // see if false (as in, the stack is equal to zero), otherwise skip it
                 if stack.pop().unwrap() == 0 {
                     //if true, then we pop it on the stack and continue
-                    state.if_control_stack.push(IfControlStackFrame::new_if(true));
+                    state
+                        .if_control_stack
+                        .push(IfControlStackFrame::new_if(true));
                 } else {
                     //if false, then we pop it on the stack and head to the offset
-                    state.if_control_stack.push(IfControlStackFrame::new_if(false));
+                    state
+                        .if_control_stack
+                        .push(IfControlStackFrame::new_if(false));
 
                     // note, we are letting the i += 1 also run
                     i += *next;
@@ -275,7 +301,7 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
             }
             Word::Else(next) => {
                 // if it wasn't false, then skip, otherwise continue
-                if state.if_control_stack.last().unwrap().if_result != false {
+                if state.if_control_stack.last().unwrap().if_result {
                     // note, we are letting the i += 1 also run
                     i += *next;
                 }
@@ -297,7 +323,13 @@ fn run_line(stack: &mut Vec<i64>, state: &mut State, words: &[Word], writer: &mu
     Ok("OK".to_string())
 }
 
-fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, output: &mut dyn Write) -> Result<(), String> {
+fn run_word(
+    stack: &mut Vec<i64>,
+    state: &mut State,
+    index: usize,
+    word: &Word,
+    output: &mut dyn Write,
+) -> Result<(), String> {
     // must be an actual word
     match word {
         Word::Number(n) => {
@@ -438,8 +470,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
                 return underflow_err();
             }
 
-            stack.swap(len - 1, len - 2);//one, three, two
-            stack.swap(len - 3, len - 1);//two, three, one
+            stack.swap(len - 1, len - 2); //one, three, two
+            stack.swap(len - 3, len - 1); //two, three, one
         }
         Word::Exclamation => {
             if stack.len() < 2 {
@@ -511,10 +543,17 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
                 // this is a slow path, but that's fine because it is only run a few times per function
                 // note the 16 here prevents functions from being unrolled recursively
                 if !command.has_been_inlined && command.inline_count < 16 {
-                    let (output, mut depends) = parsing::inline_function(raw_word, &command.words, state.defined_words.clone());
+                    let (output, mut depends) = parsing::inline_function(
+                        raw_word,
+                        &command.words,
+                        state.defined_words.clone(),
+                    );
                     let len = output.len();
 
-                    command.depends_on.iter().for_each(|f| _ = depends.insert(f.clone()));
+                    command
+                        .depends_on
+                        .iter()
+                        .for_each(|f| _ = depends.insert(f.clone()));
 
                     let new_command = DefinedWord {
                         words: Rc::new(output),
@@ -525,7 +564,6 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
                     };
                     command = new_command.clone(); // update so we use the inlined word as soon as possible
                     state.defined_words.insert(raw_word.clone(), new_command);
-
 
                     //now we undo all the inlining that depends on this word to preserve correctness
                     parsing::break_inlining(raw_word.clone(), state);
@@ -555,8 +593,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
                 return underflow_err();
             }
 
-            stack.swap(len - 1, len - 2);//one, three, two
-            stack.swap(len - 3, len - 2);//three, one, two
+            stack.swap(len - 1, len - 2); //one, three, two
+            stack.swap(len - 3, len - 2); //three, one, two
         }
         Word::EqZero => {
             if let Some(one) = stack.last() {
@@ -585,15 +623,19 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
                 //use optimized integer writing
                 state.internal_buffer.clear();
                 itoap::write_to_vec(&mut state.internal_buffer, val);
-                
-                output.write_all(&state.internal_buffer).expect("Could not write value");
+
+                output
+                    .write_all(&state.internal_buffer)
+                    .expect("Could not write value");
                 output.write_all(w.as_ref()).expect("Could not write quote");
             } else {
                 return underflow_err();
             }
         }
 
-        _ => { return Err("Can't handle ".to_string() + &*format!("{:?}", word)); }
+        _ => {
+            return Err("Can't handle ".to_string() + &*format!("{:?}", word));
+        }
     }
 
     Ok(())
