@@ -13,4 +13,5 @@ codegen-units = 1
 #strip = 'symbols'
 
 [dependencies]
-ahash = "0.8.3"
+ahash = "0.8.11"
+itoap = "1.0.1"

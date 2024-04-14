@@ -14,6 +14,7 @@ mod tests {
             variables: HashMap::with_capacity_and_hasher(10, RandomState::new()),
             if_control_stack: Vec::with_capacity(10),
             loop_control_stack: Vec::with_capacity(10),
+            internal_buffer: Vec::with_capacity(10),
         };
 
         let mut buffer: Vec<u8> = Vec::new();

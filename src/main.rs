@@ -62,6 +62,10 @@ struct State {
     // also serves constants
     if_control_stack: Vec<IfControlStackFrame>,
     loop_control_stack: Vec<LoopControlStackFrame>,
+    
+    // simply a buffer for certain operations
+    // must be cleared before use, no guarantees about state
+    internal_buffer: Vec<u8>,
 }
 
 fn main() -> Result<(), Error> {
@@ -72,6 +76,7 @@ fn main() -> Result<(), Error> {
         variables: HashMap::with_capacity_and_hasher(5, RandomState::new()),
         if_control_stack: Vec::with_capacity(3),
         loop_control_stack: Vec::with_capacity(3),
+        internal_buffer: Vec::with_capacity(10),
     };
 
     // read in words from std (or file eventually) and evaluate
@@ -309,7 +314,8 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
         Word::Dot => {
             let result = stack.pop();
             if let Some(val) = result {
-                write!(output, "{}", val).expect("Could not write value");
+                //write value used optimized integer writing
+                itoap::write(output, val).expect("Could not write value");
             } else {
                 return underflow_err();
             }
@@ -576,7 +582,12 @@ fn run_word(stack: &mut Vec<i64>, state: &mut State, index: usize, word: &Word, 
         Word::DotQuote(w) => {
             let result = stack.pop();
             if let Some(val) = result {
-                write!(output, "{}{}", val, w).expect("Could not write value");
+                //use optimized integer writing
+                state.internal_buffer.clear();
+                itoap::write_to_vec(&mut state.internal_buffer, val);
+                
+                output.write_all(&state.internal_buffer).expect("Could not write value");
+                output.write_all(w.as_ref()).expect("Could not write quote");
             } else {
                 return underflow_err();
             }
