@@ -171,8 +171,9 @@ fn run_line(
     writer: &mut dyn Write,
 ) -> Result<String, Error> {
     let mut i = 0;
+    let line_len= words.len();
 
-    while i < words.len() {
+    while i < line_len {
         let word = words.get(i).unwrap();
 
         match word {
@@ -184,7 +185,7 @@ fn run_line(
             Word::Function(function_name) => {
                 // collect whole function, then resume later
                 let mut func_index = i + 1;
-                while func_index < words.len()
+                while func_index < line_len
                     && !matches!(words.get(func_index).unwrap(), Word::EndFunction)
                 {
                     func_index += 1;
@@ -222,14 +223,14 @@ fn run_line(
                 state.variables.insert(name.clone(), val);
             }
             Word::Loop => {
-                if let Some(mut last) = state.loop_control_stack.pop() {
+                if let Some(last) = state.loop_control_stack.last_mut() {
                     last.index += 1;
 
                     if last.index < last.limit {
                         i = last.loop_start;
-                        state.loop_control_stack.push(last);
                     } else {
                         i += 1;
+                        state.loop_control_stack.pop(); //pop if we are done with loop
                     }
                     continue;
                 } else {
@@ -237,7 +238,7 @@ fn run_line(
                 }
             }
             Word::PlusLoop => {
-                if let Some(mut last) = state.loop_control_stack.pop() {
+                if let Some(last) = state.loop_control_stack.last_mut() {
                     if stack.is_empty() {
                         return Err(Error::from(underflow_err().unwrap_err()));
                     }
@@ -247,9 +248,9 @@ fn run_line(
 
                     if last.index < last.limit {
                         i = last.loop_start;
-                        state.loop_control_stack.push(last);
                     } else {
                         i += 1;
+                        state.loop_control_stack.pop(); //pop if we are done with loop
                     }
                     continue;
                 } else {
@@ -258,14 +259,14 @@ fn run_line(
             }
             // Optimize case where increase is a constant
             Word::PlusLoopConst(constant) => {
-                if let Some(mut last) = state.loop_control_stack.pop() {
+                if let Some(last) = state.loop_control_stack.last_mut() {
                     last.index += constant;
 
                     if last.index < last.limit {
                         i = last.loop_start;
-                        state.loop_control_stack.push(last);
                     } else {
                         i += 1;
+                        state.loop_control_stack.pop(); //pop if we are done with loop
                     }
                     continue;
                 } else {
@@ -360,8 +361,7 @@ fn run_word(
             stack.push(one + two);
         }
         Word::Dot => {
-            let result = stack.pop();
-            if let Some(val) = result {
+            if let Some(val) = stack.pop() {
                 //write value used optimized integer writing
                 itoap::write(output, val).expect("Could not write value");
             } else {
