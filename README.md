@@ -5,7 +5,7 @@ This was a short project of mine to create a basic implementation of Forth in Ru
 I was pleasantly surprised at how straightforward it was to build out the initial interpreter. In the future, this may be a helpful example project to practice optimizing interpreters/compilers.
 
 My goal was to beat the [Gforth](https://www.gnu.org/software/gforth/) implementation for the fizzbuzz program on my local machine. The Gforth implementation is able to handle about 30MiB/s as measured via `./gforth benchmark.forth | pv > /dev/null`.
-My implementation (while implementing significantly fewer features) is able to achieve around 875MiB/s as measured via `./forth ../../test_files/fizzbuzz3.forth | pv > /dev/null` on a Ryzen 7900X (or ~70MiB/s with `test_files/benchmark.forth`).
+My implementation (while implementing significantly fewer features) is able to achieve around 1.22GiB/s as measured via `./forth ../../test_files/fizzbuzz3.forth | pv > /dev/null` on a Ryzen 7900X (or ~70MiB/s with `test_files/benchmark.forth`). Compiled with flags: `RUSTFLAGS="-Ctarget-cpu=native" cargo build --profile optrelease`
 
 One of the primary ways I was able to achieve this is by aggressively inlining function calls. More work is needed for this to maintain program correctness, but the basic implementation is working.
 
