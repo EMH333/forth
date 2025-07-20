@@ -256,6 +256,22 @@ fn run_line(
                     return Err(Error::from(underflow_err().unwrap_err()));
                 }
             }
+            // Optimize case where increase is a constant
+            Word::PlusLoopConst(constant) => {
+                if let Some(mut last) = state.loop_control_stack.pop() {
+                    last.index += constant;
+
+                    if last.index < last.limit {
+                        i = last.loop_start;
+                        state.loop_control_stack.push(last);
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                } else {
+                    return Err(Error::from(underflow_err().unwrap_err()));
+                }
+            }
             Word::If(next) => {
                 if state.if_control_stack.len() > MAX_CONTROL_LENGTH {
                     return Err(Error::from(control_stack_overflow_err().unwrap_err()));

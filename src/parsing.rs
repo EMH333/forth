@@ -53,6 +53,7 @@ pub(crate) enum Word {
     NotIf(usize),
     DupModConst(i64),
     DotQuote(String), // print top of stack, then the quote all in one
+    PlusLoopConst(i64),
 }
 
 impl FromStr for Word {
@@ -312,6 +313,14 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                         out_words[i] = Word::EqZero;
                         out_words.remove(i + 1);
                     }
+                }
+            }
+            Word::Number(constant) => {
+                let next = out_words.get(i + 1).unwrap();
+                if next == &Word::PlusLoop {
+                    // optimize <const> LOOP+
+                    out_words[i] = Word::PlusLoopConst(*constant);
+                    out_words.remove(i + 1);
                 }
             }
             Word::Dup => {

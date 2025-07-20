@@ -139,6 +139,11 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 // -1 since the loop already increments by 1
                 output.push_str("i += pop(&stack) - 1;\n}\n")
             }
+            Word::PlusLoopConst(constant) => {
+                // -1 since the loop already increments by 1
+                let simplified = *constant - 1;
+                output.push_str(&("i += ".to_owned() + simplified.to_string().as_str() + "\n}\n"))
+            }
 
             //unsupported for now
             Word::Function(_) => {}
