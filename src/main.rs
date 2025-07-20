@@ -6,7 +6,6 @@ use crate::output_cplusplus::output_cplusplus;
 use crate::parsing::{parse_line, Word};
 use ahash::{HashSet, HashSetExt, RandomState};
 use std::collections::HashMap;
-use std::i64;
 use std::io::{stdout, BufRead, BufReader, BufWriter, Write};
 use std::rc::Rc;
 use std::string::ToString;
@@ -327,9 +326,9 @@ fn run_line(
             _ => {
                 let result = run_word(stack, state, i, word, writer);
                 if let Err(e) = result {
-                    println!("Err word: {:?}", word);
-                    println!("{:?}", state);
-                    println!("Stack: {:?}", stack);
+                    println!("Err word: {word:?}");
+                    println!("{state:?}");
+                    println!("Stack: {stack:?}");
                     return Err(Error::from(e));
                 }
             }
@@ -498,7 +497,7 @@ fn run_word(
             let one = stack.pop().unwrap();
 
             if stack.len() < two as usize {
-                return Err(format!("! address {} not in memory", two));
+                return Err(format!("! address {two} not in memory"));
             }
 
             stack[two as usize] = one;
@@ -599,7 +598,7 @@ fn run_word(
                 return Ok(());
             }
 
-            return Err("Unrecognized word ".to_string() + &*format!("{:?}", word));
+            return Err("Unrecognized word ".to_string() + &*format!("{word:?}"));
         }
 
         //optimizations
@@ -657,7 +656,7 @@ fn run_word(
         }
 
         _ => {
-            return Err("Can't handle ".to_string() + &*format!("{:?}", word));
+            return Err("Can't handle ".to_string() + &*format!("{word:?}"));
         }
     }
 
