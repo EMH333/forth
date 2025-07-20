@@ -648,6 +648,13 @@ fn run_word(
                 return underflow_err();
             }
         }
+        Word::IPlusConst(constant) => {
+            if let Some(last) = state.loop_control_stack.last() {
+                stack.push(last.index + *constant)
+            } else {
+                return underflow_err();
+            }
+        }
 
         _ => {
             return Err("Can't handle ".to_string() + &*format!("{:?}", word));

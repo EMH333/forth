@@ -144,6 +144,9 @@ fn instruction_tape(words: &&Vec<Word>) -> String {
                 let simplified = *constant - 1;
                 output.push_str(&("i += ".to_owned() + simplified.to_string().as_str() + "\n}\n"))
             }
+            Word::IPlusConst(constant) => {
+                output.push_str(&("stack.push_back(i+".to_owned() + constant.to_string().as_str() +");\n"))
+            }
 
             //unsupported for now
             Word::Function(_) => {}

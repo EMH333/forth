@@ -54,6 +54,7 @@ pub(crate) enum Word {
     DupModConst(i64),
     DotQuote(String), // print top of stack, then the quote all in one
     PlusLoopConst(i64),
+    IPlusConst(i64), // equivilant of I <const> + or <const> I +
 }
 
 impl FromStr for Word {
@@ -316,11 +317,19 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                 }
             }
             Word::Number(constant) => {
-                let next = out_words.get(i + 1).unwrap();
+                let mut next = out_words.get(i + 1).unwrap();
                 if next == &Word::PlusLoop {
                     // optimize <const> LOOP+
                     out_words[i] = Word::PlusLoopConst(*constant);
                     out_words.remove(i + 1);
+                } else if next == &Word::I {
+                    next = out_words.get(i + 2).unwrap();
+                    if next == &Word::Plus {
+                        // if it is `<const> I +`, then do IPlusConst optimization
+                        out_words[i] = Word::IPlusConst(*constant);
+                        out_words.remove(i + 1);
+                        out_words.remove(i + 1); //remove the extraneous operations
+                    }
                 }
             }
             Word::Dup => {
@@ -378,6 +387,22 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                             out_words.remove(i + 1);
                         }
                         _ => {}
+                    }
+                }
+            }
+            Word::I => {
+                let mut next = out_words.get(i + 1).unwrap();
+                if next == &Word::OnePlus {
+                    // optimize I 1 +
+                    out_words[i] = Word::IPlusConst(1);
+                    out_words.remove(i + 1);
+                } else if let Word::Number(constant) = next {
+                    next = out_words.get(i + 2).unwrap();
+                    if next == &Word::Plus {
+                        // if it is `I <const> +`, then do IPlusConst optimization
+                        out_words[i] = Word::IPlusConst(*constant);
+                        out_words.remove(i + 1);
+                        out_words.remove(i + 1); //remove the extraneous operations
                     }
                 }
             }
