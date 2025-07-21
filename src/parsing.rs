@@ -346,48 +346,18 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
                 }
             }
             Word::Dot => {
-                if let Some(next) = out_words.get(i + 1) {
-                    match next {
-                        Word::Cr => {
-                            out_words[i] = Word::DotQuote("\n".to_string());
-                            out_words.remove(i + 1);
-                        }
-                        Word::Quote(inner) => {
-                            out_words[i] = Word::DotQuote("".to_owned() + inner);
-                            out_words.remove(i + 1);
-                        }
-                        _ => {}
-                    }
+                if let Some(replace) = inline_strings(out_words, i, String::new()) {
+                    out_words[i] = Word::DotQuote(replace);
                 }
             }
             Word::Quote(val) => {
-                if let Some(next) = out_words.get(i + 1) {
-                    match next {
-                        Word::Cr => {
-                            out_words[i] = Word::Quote(val.to_owned() + "\n");
-                            out_words.remove(i + 1);
-                        }
-                        Word::Quote(inner) => {
-                            out_words[i] = Word::Quote(val.to_owned() + inner);
-                            out_words.remove(i + 1);
-                        }
-                        _ => {}
-                    }
+                if let Some(replace) = inline_strings(out_words, i, val.clone()) {
+                    out_words[i] = Word::Quote(replace);
                 }
             }
             Word::DotQuote(val) => {
-                if let Some(next) = out_words.get(i + 1) {
-                    match next {
-                        Word::Cr => {
-                            out_words[i] = Word::DotQuote(val.to_owned() + "\n");
-                            out_words.remove(i + 1);
-                        }
-                        Word::Quote(inner) => {
-                            out_words[i] = Word::DotQuote(val.to_owned() + inner);
-                            out_words.remove(i + 1);
-                        }
-                        _ => {}
-                    }
+                if let Some(replace) = inline_strings(out_words, i, val.clone()) {
+                    out_words[i] = Word::DotQuote(replace);
                 }
             }
             Word::I => {
@@ -413,6 +383,39 @@ pub(crate) fn optimization_pass(out_words: &mut Vec<Word>) {
 
         i += 1;
     }
+}
+
+// inline_strings tries to concatanate Quotes as much as possible, to minimize instruction count
+fn inline_strings(
+    out_words: &mut Vec<Word>,
+    current_index: usize,
+    start: String,
+) -> Option<String> {
+    let i = current_index;
+    let mut concat = start;
+    let mut j = i + 1;
+    while let Some(next) = out_words.get(j) {
+        match next {
+            Word::Cr => {
+                concat += "\n";
+            }
+            Word::Quote(inner) => {
+                concat += inner;
+            }
+            _ => {
+                break;
+            }
+        }
+        j += 1;
+    }
+    if j != i + 1 {
+        let diff = j - i - 1;
+        for _ in 0..diff {
+            out_words.remove(i + 1);
+        }
+        return Some(concat);
+    }
+    None
 }
 
 pub(crate) fn inline_function(
