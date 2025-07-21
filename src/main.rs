@@ -170,9 +170,12 @@ fn run_line(
     writer: &mut dyn Write,
 ) -> Result<String, Error> {
     let mut i = 0;
-    let line_len= words.len();
+    let line_len = words.len();
 
     while i < line_len {
+        //for profiling
+        // coz::progress!();
+
         let word = words.get(i).unwrap();
 
         match word {
